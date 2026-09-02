@@ -6,7 +6,8 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
     title: "",
     location: "",
     date: "",
-    tag: "", // 🌟 메모(태그) 입력 필드 복구!
+    tag: "",
+    img: "", // 🌟 사진 데이터(URL 또는 Base64)를 담을 필드 추가!
     author: "덕후유저",
   });
 
@@ -16,6 +17,18 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // 🌟 이미지 파일 업로드 처리 함수 (파일을 읽어서 문자열로 변환)
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({ ...prev, img: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -52,6 +65,7 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
       location: "",
       date: "",
       tag: "",
+      img: "",
       author: "덕후유저",
     });
     onClose();
@@ -84,6 +98,8 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
               제목: {formData.title}
               <br />
               지역: {formData.location}
+              <br />
+              날짜: {formData.date}
               <br />
               성공적으로 동행 방이 개설되었습니다.
             </p>
@@ -135,19 +151,40 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
               />
             </div>
 
+            {/* 🌟 날짜 선택기 (캘린더형 input type="date") */}
             <div className="form-group">
-              <label>날짜</label>
+              <label>날짜 선택</label>
               <input
-                type="text"
+                type="date"
                 name="date"
                 value={formData.date}
                 onChange={handleChange}
-                placeholder="예: 8월 25일 (일)"
                 required
               />
             </div>
 
-            {/* 🌟 메모 / 태그 입력 필드 추가 완료 */}
+            {/* 🌟 사진 업로드 입력 필드 추가 */}
+            <div className="form-group">
+              <label>대표 이미지 업로드</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                style={{ padding: "8px 0" }}
+              />
+              {formData.img && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "12px",
+                    color: "#10b981",
+                  }}
+                >
+                  ✅ 이미지가 성공적으로 선택되었습니다!
+                </div>
+              )}
+            </div>
+
             <div className="form-group">
               <label>메모 / 한줄 태그</label>
               <input
