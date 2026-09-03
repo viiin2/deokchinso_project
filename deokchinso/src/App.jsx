@@ -96,11 +96,15 @@ export default function App() {
             호스트 등록
           </button>
           <div className="profile-img" onClick={() => setIsMyPageOpen(true)}>
-            <img src={MY_PROFILE_IMG} alt="내 프로필" />
+            <img
+              src={
+                "https://mblogthumb-phinf.pstatic.net/MjAxOTA3MjdfMTI3/MDAxNTY0MjMyNDU0OTgz.oh-VWNn7vocO4NbjRrJzocbXTbi434N-p9Bu5cqF-wkg.AyqJFCQhrWCCsAKGuQGRAneD2Ko5jL_K9a1IAn7-NJ0g.JPEG.taegu1005/%EC%BA%A1%EC%B2%98_2019_07_21_16_34_57_566.jpg?type=w800"
+              }
+              alt="내 프로필"
+            />
           </div>
         </div>
       </header>
-
       {/* 메뉴별 본문 전환 */}
       {activeMenu === "동행 찾기" && (
         <HomeSection
@@ -126,10 +130,11 @@ export default function App() {
           setIsSearchModalOpen={setIsSearchModalOpen}
         />
       )}
-      {activeMenu === "인기 이벤트" && <PopularEventsPage />}
+      {activeMenu === "인기 이벤트" && (
+        <PopularEventsPage onOpenHostModal={() => setIsHostModalOpen(true)} />
+      )}{" "}
       {activeMenu === "커뮤니티" && <CommunityBoard />}
       {activeMenu === "덕친소 가이드" && <GuidePage />}
-
       <footer className="footer-dark">
         <div className="footer-top">
           <div className="footer-logo-area">
@@ -148,7 +153,6 @@ export default function App() {
           <p>© 2026 Deokchinso Inc. All rights reserved.</p>
         </div>
       </footer>
-
       {/* 모든 모달 */}
       <HostModal
         isOpen={isHostModalOpen}

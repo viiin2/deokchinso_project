@@ -1,197 +1,273 @@
-import { useState } from "react";
-import WritePostModal from "./WritePostModal";
-import PostDetailModal from "./PostDetailModal";
+import React, { useState, useEffect } from "react";
 
 export default function CommunityBoard() {
-  const [boardType, setBoardType] = useState("talk");
-  const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
 
-  // 상세 보기 모달 상태
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const GENRES = [
+    "K-POP",
+    "애니메이션",
+    "게임",
+    "만화/웹툰",
+    "뮤지컬",
+    "스포츠",
+    "코스프레",
+  ];
+  const [activeTab, setActiveTab] = useState("K-POP");
+
+  const [isWriting, setIsWriting] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [newComment, setNewComment] = useState("");
 
-  // 게시글 데이터를 상태(State)로 관리 (초기 댓글 목록 포함)
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      type: "talk",
-      title:
-        "이번 콘서트 스탠딩 번호 30번대인데 체력 관리 어떻게 하시나요? ㅠㅠ",
-      author: "뵬이",
-      views: 342,
-      comments: 12,
-      time: "10분 전",
-      content:
-        "이번에 운 좋게 스탠딩 앞번호를 잡았는데 체력이 버틸지 너무 걱정됩니다... 콘서트 전날 숙면 외에 꿀팁 있으신 분들 공유 부탁드려요!",
-      commentsList: [
+  const fetchCommunityPosts = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/api/community");
+      const data = await response.json();
+      setPosts(data);
+    } catch (error) {
+      console.error("데이터 로딩 실패:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCommunityPosts();
+  }, []);
+
+  const filteredPosts = posts.filter((post) => post.category === activeTab);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return alert("제목을 입력해주세요!");
+
+    try {
+      const response = await fetch("http://localhost:3000/api/community", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTitle,
+          content: newContent,
+          category: activeTab,
+          author: "덕후유저",
+        }),
+      });
+
+      if (response.ok) {
+        setNewTitle("");
+        setNewContent("");
+        setIsWriting(false);
+        fetchCommunityPosts();
+      }
+    } catch (error) {
+      alert("글 작성 실패");
+    }
+  };
+
+  const handlePostClick = async (post) => {
+    setSelectedPost(post);
+
+    try {
+      const response = await fetch(
+        `http://localhost:3000/api/community/${post.id}/view`,
+        { method: "POST" },
+      );
+      if (response.ok) {
+        const updatedPost = await response.json();
+        setSelectedPost(updatedPost);
+        fetchCommunityPosts();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:3000/api/community/${selectedPost.id}/comment`,
         {
-          id: 1,
-          author: "수빈",
-          text: "비타민이랑 초코바 꼭 챙겨가셔요! 생각보다 당 떨어집니다.",
-          time: "5분 전",
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: newComment }),
         },
-      ],
-    },
-    {
-      id: 2,
-      type: "talk",
-      title: "홍대 카페에서 하는 생일 카페 가신 분 계신가요? 특전 예쁘나요?",
-      author: "누들",
-      views: 512,
-      comments: 24,
-      time: "1시간 전",
-      content:
-        "오늘부터 홍대에서 우리 애기 생일 카페 열린다고 해서 가보려고 하는데 다녀오신 분 후기 좀 들려주세요~ 특전 퀄리티 궁금합니다!",
-      commentsList: [],
-    },
-    {
-      id: 3,
-      type: "talk",
-      title: "덕질하면서 모은 포토카드 보관함 추천 좀 해주세요!",
-      author: "포카리",
-      views: 820,
-      comments: 45,
-      time: "3시간 전",
-      content:
-        "바인더랑 슬리브 어떤 브랜드 쓰시나요? 비닐에 흠집 안 나는 좋은 제품으로 추천 부탁드립니다!",
-      commentsList: [],
-    },
-    {
-      id: 4,
-      type: "review",
-      title:
-        "[직관후기] KSPO DOME 2층 시야 생각보다 훨씬 좋네요! (직관 사진 포함)",
-      author: "롤덕후",
-      views: 1240,
-      comments: 38,
-      time: "어제",
-      content:
-        "시야제한석 아닐까 걱정했는데 돌출 무대가 한눈에 들어와서 너무 만족스러웠습니다. 응원봉 연동도 칼같이 잘 되네요!",
-      commentsList: [],
-    },
-    {
-      id: 5,
-      type: "review",
-      title: "뮤지컬 <지킬앤하이드> 관극 후기 및 커튼콜 촬영 팁",
-      author: "뮤지컬러버",
-      views: 950,
-      comments: 19,
-      time: "2일 전",
-      content:
-        "배우님들 성량에 소름 돋았습니다. 꼭 앞자리 잡아서 표정 연기까지 직관하시는 걸 추천드려요.",
-      commentsList: [],
-    },
-    {
-      id: 6,
-      type: "trade",
-      title: "[양도] NCT DREAM 서울콘 스탠딩 A구역 1장 양도합니다 (인증 가능)",
-      author: "런쥔최고",
-      views: 1580,
-      comments: 8,
-      time: "방금 전",
-      content:
-        "개인 사정으로 인해 양도합니다. 내역 인증 당연히 가능하며 안전거래나 직거래 모두 환영합니다.",
-      commentsList: [],
-    },
-    {
-      id: 7,
-      type: "trade",
-      title: "[교환] 일러스타페스티벌 포토카드 교환하실 분 구해요!",
-      author: "코스어",
-      views: 410,
-      comments: 3,
-      time: "30분 전",
-      content:
-        "중복 카드 있어서 다른 멤버로 교환 원합니다. 행사장 앞에서 직거래해요~",
-      commentsList: [],
-    },
-  ]);
+      );
 
-  // 새 글 추가 함수
-  const handleAddPost = (newPost) => {
-    const postWithComments = { ...newPost, commentsList: [] };
-    setPosts([postWithComments, ...posts]);
-    setBoardType(newPost.type);
+      if (response.ok) {
+        const updatedPost = await response.json();
+        setSelectedPost(updatedPost);
+        setNewComment("");
+        fetchCommunityPosts();
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
-
-  // 댓글 추가 함수
-  const handleAddComment = (postId, newComment) => {
-    setPosts(
-      posts.map((post) => {
-        if (post.id === postId) {
-          const updatedComments = [...(post.commentsList || []), newComment];
-          const updatedPost = {
-            ...post,
-            commentsList: updatedComments,
-            comments: updatedComments.length,
-          };
-          setSelectedPost(updatedPost); // 열려있는 모달의 내용도 즉시 업데이트
-          return updatedPost;
-        }
-        return post;
-      }),
-    );
-  };
-
-  const currentPosts = posts.filter((post) => post.type === boardType);
 
   return (
-    <div className="community-container">
-      <div className="community-header">
+    <div
+      className="community-board-container"
+      style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}
+    >
+      <div
+        className="community-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          marginBottom: "30px",
+        }}
+      >
         <div>
-          <h2 className="main-title">💬 덕친소 커뮤니티</h2>
-          <p className="sub-title">
-            덕후들의 생생한 수다와 직관 후기를 나누는 공간입니다.
+          <h2
+            style={{
+              fontSize: "32px",
+              fontWeight: "800",
+              color: "#18181b",
+              margin: "0 0 10px 0",
+            }}
+          >
+            💬 장르별 커뮤니티
+          </h2>
+          <p style={{ color: "#f43f5e", fontWeight: "600", margin: 0 }}>
+            같은 장르를 좋아하는 팬들과 생생한 수다를 나누는 공간입니다.
           </p>
         </div>
-        <button className="write-btn" onClick={() => setIsWriteModalOpen(true)}>
-          ✏️ 글쓰기
+        <button
+          onClick={() => setIsWriting(!isWriting)}
+          style={{
+            backgroundColor: "#f43f5e",
+            color: "white",
+            padding: "12px 24px",
+            borderRadius: "12px",
+            border: "none",
+            fontWeight: "bold",
+            cursor: "pointer",
+            fontSize: "15px",
+          }}
+        >
+          ✏️ {isWriting ? "취소하기" : "글쓰기"}
         </button>
       </div>
 
-      {/* 게시판 탭 메뉴 */}
-      <div className="community-tabs">
-        <button
-          className={`community-tab ${boardType === "talk" ? "active" : ""}`}
-          onClick={() => setBoardType("talk")}
-        >
-          🗣️ 덕질 수다방
-        </button>
-        <button
-          className={`community-tab ${boardType === "review" ? "active" : ""}`}
-          onClick={() => setBoardType("review")}
-        >
-          ⭐ 직관 후기
-        </button>
-        <button
-          className={`community-tab ${boardType === "trade" ? "active" : ""}`}
-          onClick={() => setBoardType("trade")}
-        >
-          🤝 양도/교환 정보
-        </button>
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+        }}
+      >
+        {GENRES.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: "10px 20px",
+              borderRadius: "20px",
+              border: activeTab === tab ? "none" : "1px solid #e4e4e7",
+              fontWeight: "600",
+              cursor: "pointer",
+              backgroundColor: activeTab === tab ? "#f43f5e" : "#ffffff",
+              color: activeTab === tab ? "white" : "#57534e",
+              transition: "all 0.2s",
+            }}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
-      {/* 게시글 리스트 테이블 */}
-      <div className="community-table">
-        <div className="table-header-row">
-          <span className="col-title">제목</span>
-          <span className="col-author">작성자</span>
-          <span className="col-views">조회</span>
-          <span className="col-time">시간</span>
+      {isWriting && (
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            marginBottom: "20px",
+            padding: "20px",
+            backgroundColor: "#fff1f2",
+            borderRadius: "12px",
+            border: "1px solid #fecdd3",
+          }}
+        >
+          <input
+            type="text"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="제목을 입력하세요"
+            style={{
+              padding: "14px 20px",
+              borderRadius: "8px",
+              border: "1px solid #fda4af",
+              fontSize: "15px",
+              outline: "none",
+            }}
+          />
+          <textarea
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            placeholder={`${activeTab} 장르에 대해 자유롭게 이야기해 보세요!`}
+            style={{
+              padding: "14px 20px",
+              borderRadius: "8px",
+              border: "1px solid #fda4af",
+              fontSize: "15px",
+              outline: "none",
+              minHeight: "100px",
+              resize: "none",
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              alignSelf: "flex-end",
+              backgroundColor: "#e11d48",
+              color: "white",
+              padding: "12px 24px",
+              borderRadius: "8px",
+              border: "none",
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            등록하기
+          </button>
+        </form>
+      )}
+
+      {/* 🌟 크기가 흔들리지 않도록 고정된 테이블 래퍼 클래스 적용 */}
+      <div className="community-table-wrapper">
+        <div className="community-row header">
+          <div className="col-title">제목</div>
+          <div className="col-author">작성자</div>
+          <div className="col-views">조회</div>
+          <div className="col-time">시간</div>
         </div>
-        {currentPosts.length > 0 ? (
-          currentPosts.map((post) => (
+
+        {filteredPosts.length > 0 ? (
+          filteredPosts.map((post) => (
             <div
-              className="table-body-row"
               key={post.id}
-              onClick={() => {
-                setSelectedPost(post);
-                setIsDetailModalOpen(true);
-              }}
+              onClick={() => handlePostClick(post)}
+              className="community-row item"
             >
-              <div className="col-title post-title-text">
-                {post.title}{" "}
-                <span className="comment-count">[{post.comments}]</span>
+              <div className="col-title">
+                {post.title}
+                {post.comments?.length > 0 && (
+                  <span
+                    style={{
+                      color: "#f43f5e",
+                      fontSize: "13px",
+                      marginLeft: "6px",
+                    }}
+                  >
+                    [{post.comments.length}]
+                  </span>
+                )}
               </div>
               <div className="col-author">{post.author}</div>
               <div className="col-views">{post.views}</div>
@@ -199,30 +275,194 @@ export default function CommunityBoard() {
             </div>
           ))
         ) : (
-          <p
-            className="empty-text"
-            style={{ padding: "40px", textAlign: "center", color: "#71717a" }}
+          <div
+            style={{
+              padding: "50px",
+              textAlign: "center",
+              color: "#71717a",
+            }}
           >
-            작성된 게시글이 없습니다. 첫 글을 남겨보세요!
-          </p>
+            아직 작성된 글이 없습니다. 첫 번째 글을 남겨보세요!
+          </div>
         )}
       </div>
 
-      {/* 글쓰기 모달 */}
-      <WritePostModal
-        isOpen={isWriteModalOpen}
-        onClose={() => setIsWriteModalOpen(false)}
-        onAddPost={handleAddPost}
-        currentBoardType={boardType}
-      />
+      {selectedPost && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{
+              backgroundColor: "white",
+              padding: "30px",
+              borderRadius: "16px",
+              width: "90%",
+              maxWidth: "600px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <span
+                style={{
+                  backgroundColor: "#f4f4f5",
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: "bold",
+                  color: "#57534e",
+                }}
+              >
+                {selectedPost.category}
+              </span>
+              <button
+                onClick={() => setSelectedPost(null)}
+                style={{
+                  border: "none",
+                  background: "none",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                  color: "#a1a1aa",
+                }}
+              >
+                ✕
+              </button>
+            </div>
 
-      {/* 게시글 상세 보기 및 댓글 모달 */}
-      <PostDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => setIsDetailModalOpen(false)}
-        post={selectedPost}
-        onAddComment={handleAddComment}
-      />
+            <h3
+              style={{
+                fontSize: "24px",
+                fontWeight: "800",
+                color: "#18181b",
+                marginBottom: "16px",
+                lineHeight: "1.4",
+              }}
+            >
+              {selectedPost.title}
+            </h3>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                color: "#71717a",
+                fontSize: "13px",
+                paddingBottom: "20px",
+                borderBottom: "1px solid #e4e4e7",
+                marginBottom: "20px",
+              }}
+            >
+              <span>✍️ {selectedPost.author}</span>
+              <span>|</span>
+              <span>👀 조회수 {selectedPost.views}</span>
+              <span>|</span>
+              <span>🕒 {selectedPost.time}</span>
+            </div>
+
+            <div
+              style={{
+                minHeight: "100px",
+                color: "#3f3f46",
+                fontSize: "16px",
+                lineHeight: "1.6",
+                marginBottom: "30px",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {selectedPost.content || "내용이 없습니다."}
+            </div>
+
+            <div
+              style={{
+                borderTop: "2px solid #f4f4f5",
+                paddingTop: "20px",
+                marginBottom: "20px",
+              }}
+            >
+              <h4
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  marginBottom: "16px",
+                }}
+              >
+                댓글 {selectedPost.comments?.length || 0}개
+              </h4>
+              {selectedPost.comments?.map((cmt, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "12px 16px",
+                    backgroundColor: "#f4f4f5",
+                    borderRadius: "8px",
+                    marginBottom: "8px",
+                    fontSize: "14px",
+                    color: "#18181b",
+                  }}
+                >
+                  <strong style={{ marginRight: "8px", color: "#57534e" }}>
+                    덕후유저:
+                  </strong>{" "}
+                  {cmt}
+                </div>
+              ))}
+            </div>
+
+            <form
+              onSubmit={handleCommentSubmit}
+              style={{ display: "flex", gap: "8px", marginBottom: "20px" }}
+            >
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="댓글을 남겨보세요..."
+                style={{
+                  flexGrow: 1,
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "1px solid #e4e4e7",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  padding: "0 20px",
+                  backgroundColor: "#18181b",
+                  color: "white",
+                  borderRadius: "8px",
+                  border: "none",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                등록
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

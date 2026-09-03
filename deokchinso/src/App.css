@@ -1747,3 +1747,390 @@ body {
   font-size: 12px;
   font-weight: 800;
 }
+/* 🌟 검색 모달창 크기 및 2단 그리드 뷰 강제 적용 */
+.search-modal-content {
+  max-width: 800px !important; /* 모달창을 기존보다 더 넓게! */
+  width: 90% !important;
+}
+
+.search-modal-content .card-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr) !important; /* 한 줄에 무조건 2개씩! */
+  gap: 16px;
+}
+
+/* 🌟 검색 모달창 안의 카드 사진 높이 축소 */
+.search-modal-content .card-image {
+  height: 140px !important; /* 기존보다 사진을 납작하게 줄여서 한눈에 보이게 */
+  object-fit: cover;
+}
+
+/* 📱 폰으로 볼 때만 한 줄에 1개씩 나오도록 반응형 처리 */
+@media (max-width: 600px) {
+  .search-modal-content .card-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* =========================================
+   🔥 인기 이벤트 페이지 (Popular Events) 스타일
+   ========================================= */
+.popular-page-container {
+  padding: 40px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.popular-header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+.popular-header .header-subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #57534e;
+  margin-bottom: 8px;
+}
+
+.popular-header h2 {
+  font-size: 32px;
+  font-weight: 800;
+  margin: 0 0 12px 0;
+  color: #18181b;
+}
+
+.popular-header p {
+  color: #f43f5e;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* 🌟 핵심: 3단 그리드 정렬 */
+.popular-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.popular-card {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f4f4f5;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.popular-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.1);
+}
+
+/* 이미지 영역 (납작하고 꽉 차게) */
+.popular-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 220px;
+}
+
+.popular-image-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* TOP 1, 2, 3 뱃지 */
+.popular-rank {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: #18181b;
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.popular-info {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.popular-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tag-category {
+  color: #57534e;
+  background: #f5f5f4;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.tag-fire {
+  color: #e11d48;
+  background: #ffe4e6;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.popular-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 12px 0;
+  color: #18181b;
+  word-break: keep-all;
+  line-height: 1.4;
+}
+
+.popular-detail {
+  font-size: 14px;
+  color: #71717a;
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+}
+
+/* 카드 하단부 (조회수 & 버튼) */
+.popular-footer {
+  margin-top: auto; /* 항상 카드 맨 아래에 붙도록 */
+  padding-top: 20px;
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #f4f4f5;
+}
+
+.popular-footer .views {
+  font-size: 13px;
+  color: #a1a1aa;
+  font-weight: 500;
+}
+
+.join-btn {
+  background: none;
+  border: none;
+  color: #f43f5e;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+
+.join-btn:hover {
+  opacity: 0.7;
+  text-decoration: underline;
+}
+
+/* 📱 반응형 (화면 좁아지면 2칸 -> 1칸으로 변경) */
+@media (max-width: 900px) {
+  .popular-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .popular-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* =========================================
+   🛠️ 레이아웃 붕괴 및 텍스트 정렬 수정
+   ========================================= */
+
+/* 🌟 1. 페이지 이동 시 네비게이션/화면 좁아지는 현상 완벽 차단 */
+.app-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between !important; /* 양쪽 끝으로 확실히 밀어냄 */
+  box-sizing: border-box;
+}
+
+.nav-menu {
+  flex-grow: 1; /* 메뉴들이 가운데 공간을 차지하게 해서 버튼 겹침 방지 */
+  display: flex;
+  justify-content: center;
+}
+
+/* 🌟 2. 인기 이벤트 제목 & 카드 글씨 왼쪽 정렬 */
+.popular-header,
+.popular-info {
+  text-align: left !important;
+}
+
+.popular-header h2,
+.popular-header p,
+.popular-header .header-subtitle {
+  text-align: left !important;
+  margin-left: 0 !important;
+}
+
+.popular-tags {
+  justify-content: flex-start !important; /* 태그(불꽃 아이콘 등)도 왼쪽으로 */
+}
+
+/* 🌟 3. 덕친소 가이드 & 커뮤니티 헤더 글씨 왼쪽 정렬 */
+/* 해당 페이지들의 최상단 제목 부분을 싹 다 왼쪽으로 정렬합니다 */
+.guide-page-container,
+.community-board-container,
+.guide-header,
+.community-header,
+.guide-page-container h2,
+.community-board-container h2 {
+  text-align: left !important;
+  align-items: flex-start !important;
+}
+/* =========================================
+   💬 장르별 커뮤니티 테이블 크기 고정 및 정렬
+   ========================================= */
+
+/* 커뮤니티 전체 감싸는 박스 고정 */
+.community-board-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* 게시판 테이블 전체 틀 고정 */
+.community-table-wrapper {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e4e4e7;
+  overflow: hidden;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+/* 테이블 헤더 및 리스트 행 구조 고정 (flex 고정 너비 활용) */
+.community-row {
+  display: flex;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid #f4f4f5;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.community-row.header {
+  background-color: #f4f4f5;
+  font-weight: 700;
+  color: #57534e;
+  font-size: 14px;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.community-row.item {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.community-row.item:hover {
+  background-color: #fafafa;
+}
+
+/* 각 칸의 가로 폭을 완전히 고정하여 탭을 바꿔도 UI가 흔들리지 않게 함 */
+.col-title {
+  flex-grow: 1;
+  font-weight: 600;
+  color: #18181b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 20px;
+}
+
+.col-author {
+  width: 120px;
+  text-align: center;
+  font-size: 14px;
+  color: #71717a;
+  flex-shrink: 0;
+}
+
+.col-views {
+  width: 90px;
+  text-align: center;
+  font-size: 14px;
+  color: #71717a;
+  flex-shrink: 0;
+}
+
+.col-time {
+  width: 110px;
+  text-align: right;
+  font-size: 14px;
+  color: #a1a1aa;
+  flex-shrink: 0;
+}
+.genre-icon-circle {
+  width: 65px;
+  height: 65px;
+  border-radius: 50%;
+  background-color: #f4f4f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  padding-top: 4px; /* 눈으로 보면서 2~4px 정도 조절해보세요! */
+  box-sizing: border-box;
+}
+/* =========================================
+   🌟 모달창 오픈 시 화면 위치 및 중앙 고정 완벽 해결
+   ========================================= */
+
+/* 모달이 떴을 때 배경 오버레이 */
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important; /* 항상 화면 세로 정중앙! */
+  z-index: 99999 !important;
+  overflow-y: auto !important; /* 모달 내용이 길면 내부에서 스크롤되도록 */
+  padding: 20px !important;
+  box-sizing: border-box !important;
+}
+
+/* 모달 내용 박스 (화면 밖으로 안 나가고 정중앙에 안착) */
+.modal-content {
+  background: #ffffff !important;
+  border-radius: 20px !important;
+  width: 100% !important;
+  max-width: 600px !important;
+  max-height: 90vh !important; /* 화면 높이를 넘지 않음 */
+  overflow-y: auto !important; /* 내용이 많으면 박스 안에서 스크롤 */
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  box-sizing: border-box !important;
+  margin: auto !important;
+}

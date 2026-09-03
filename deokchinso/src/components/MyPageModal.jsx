@@ -51,12 +51,12 @@ export default function MyPageModal({ isOpen, onClose }) {
         {/* 프로필 요약 카드 */}
         <div className="mypage-profile-banner">
           <img
-            src="https://picsum.photos/seed/user/100/100"
+            src="https://mblogthumb-phinf.pstatic.net/MjAxOTA3MjdfMTI3/MDAxNTY0MjMyNDU0OTgz.oh-VWNn7vocO4NbjRrJzocbXTbi434N-p9Bu5cqF-wkg.AyqJFCQhrWCCsAKGuQGRAneD2Ko5jL_K9a1IAn7-NJ0g.JPEG.taegu1005/%EC%BA%A1%EC%B2%98_2019_07_21_16_34_57_566.jpg?type=w800"
             alt="내 프로필"
             className="mypage-avatar"
           />
           <div>
-            <h4 className="mypage-username">수빈 님 (덕질 레벨: 찐덕후 ✨)</h4>
+            <h4 className="mypage-username">루피고기도둑 님</h4>
             <p className="mypage-email">subin@deokchinso.com</p>
           </div>
         </div>

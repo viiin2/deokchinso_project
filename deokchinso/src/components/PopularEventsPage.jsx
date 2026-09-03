@@ -1,111 +1,113 @@
-import { useState } from "react";
+import React from "react";
 
-export default function PopularEventsPage() {
-  // 동행 구하는 인원수(seekingCount)를 기준으로 하는 이벤트 데이터
-  const [events, setEvents] = useState([
+export default function PopularEventsPage({ onOpenHostModal }) {
+  const popularEvents = [
     {
       id: 1,
-      rank: 1,
+      rank: "TOP 1",
+      category: "애니메이션",
+      fire: "🔥 128명 동행 구하는 중",
       title: "코믹월드 2026 (서울)",
-      category: "서브컬처",
       date: "5월 25일 ~ 26일",
       location: "일산 킨텍스",
-      seekingCount: 128,
-      views: 8900,
-      img: "https://picsum.photos/seed/comic/800/500",
+      views: "8,900회",
+      image:
+        "https://images.unsplash.com/photo-1612444530582-fc66183b16f7?q=80&w=600&auto=format&fit=crop",
     },
     {
       id: 2,
-      rank: 2,
-      title: "G-STAR 2026",
+      rank: "TOP 2",
       category: "게임/e스포츠",
+      fire: "🔥 95명 동행 구하는 중",
+      title: "G-STAR 2026",
       date: "11월 14일 ~ 17일",
       location: "부산 벡스코",
-      seekingCount: 95,
-      views: 6200,
-      img: "https://picsum.photos/seed/gstar/800/500",
+      views: "6,200회",
+      image:
+        "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=600&auto=format&fit=crop",
     },
     {
       id: 3,
-      rank: 3,
-      title: "인천 펜타포트 락 페스티벌",
-      category: "페스티벌",
+      rank: "TOP 3",
+      category: "뮤지컬",
+      fire: "🔥 84명 동행 구하는 중",
+      title: "뮤지컬 <데스노트> 서울 앵콜",
       date: "8월 2일 ~ 4일",
-      location: "인천 송도 달빛축제공원",
-      seekingCount: 84,
-      views: 7600,
-      img: "https://picsum.photos/seed/rock/800/500",
+      location: "예술의전당 대극장",
+      views: "7,600회",
+      image:
+        "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?q=80&w=600&auto=format&fit=crop",
     },
     {
       id: 4,
-      rank: 4,
-      title: "NCT DREAM 월드투어 앙코르",
+      rank: "TOP 4",
       category: "K-POP",
-      date: "6월 10일 (토)",
-      location: "고척 스카이돔",
-      seekingCount: 62,
-      views: 5400,
-      img: "https://picsum.photos/seed/kpop/800/500",
+      fire: "🔥 72명 동행 구하는 중",
+      title: "아이유(IU) 2026 월드투어 콘서트",
+      date: "9월 12일 ~ 13일",
+      location: "상암 월드컵경기장",
+      views: "5,400회",
+      image:
+        "https://img.sbs.co.kr/newsnet/etv/upload/2023/08/16/30000868871_500.jpg", // 🌟 확실한 콘서트 사진으로 교체!
     },
-  ]);
-
-  // 동행 구하기 버튼 클릭 시 해당 이벤트의 동행 구인 인원이 1명 늘어나면서 실시간 순위 재정렬
-  const handleJoinRequest = (id) => {
-    const updated = events.map((ev) => {
-      if (ev.id === id) {
-        return { ...ev, seekingCount: ev.seekingCount + 1 };
-      }
-      return ev;
-    });
-
-    // 동행 구하는 인원수가 많은 순서대로 실시간 재정렬 후 순위(rank) 재부여
-    updated.sort((a, b) => b.seekingCount - a.seekingCount);
-    const ranked = updated.map((ev, index) => ({ ...ev, rank: index + 1 }));
-    setEvents(ranked);
-    alert("이벤트 동행 구인 신청이 완료되었습니다! 랭킹에 반영되었습니다. 🔥");
-  };
+    {
+      id: 5,
+      rank: "TOP 5",
+      category: "스포츠",
+      fire: "🔥 65명 동행 구하는 중",
+      title: "T1 vs GEN.G 결승 직관",
+      date: "8월 30일 (일)",
+      location: "잠실 KSPO DOME",
+      views: "4,200회",
+      image:
+        "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop",
+    },
+    {
+      id: 6,
+      rank: "TOP 6",
+      category: "코스프레",
+      fire: "🔥 58명 동행 구하는 중",
+      title: "AGF 2026 애니메이션 페스티벌",
+      date: "12월 7일 ~ 8일",
+      location: "일산 킨텍스 제1전시장",
+      views: "3,800회",
+      image:
+        "https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?q=80&w=600&auto=format&fit=crop", // 🌟 확실한 화려한 조명 사진으로 교체!
+    },
+  ];
 
   return (
-    <div className="popular-events-container">
+    <div className="popular-page-container">
       <div className="popular-header">
-        <div>
-          <span className="popular-badge">🔥 실시간 동행 랭킹</span>
-          <h2 className="main-title">현재 가장 동행을 많이 구하는 이벤트</h2>
-          <p className="sub-title">
-            팬들이 직접 등록하고 참여 중인 동행 모집 수를 실시간으로 집계한 인기
-            순위입니다.
-          </p>
-        </div>
+        <div className="header-subtitle">🔥 실시간 동행 랭킹</div>
+        <h2>현재 가장 동행을 많이 구하는 이벤트</h2>
+        <p>
+          팬들이 직접 등록하고 참여 중인 동행 모집 수를 실시간으로 집계한 인기
+          순위입니다.
+        </p>
       </div>
 
-      <div className="popular-events-grid">
-        {events.map((ev) => (
-          <div className="popular-card" key={ev.id}>
-            <div className="popular-img-box">
-              <img src={ev.img} alt={ev.title} className="popular-img" />
-              <span className={`rank-badge rank-${ev.rank}`}>
-                TOP {ev.rank}
-              </span>
+      <div className="popular-grid">
+        {popularEvents.map((event) => (
+          <div className="popular-card" key={event.id}>
+            <div className="popular-image-wrapper">
+              <img src={event.image} alt={event.title} />
+              <div className="popular-rank">{event.rank}</div>
             </div>
-            <div className="popular-content">
-              <div className="popular-meta">
-                <span className="category">{ev.category}</span>
-                <span className="seeking-badge">
-                  🔥 {ev.seekingCount}명 동행 구하는 중
-                </span>
+
+            <div className="popular-info">
+              <div className="popular-tags">
+                <span className="tag-category">{event.category}</span>
+                <span className="tag-fire">{event.fire}</span>
               </div>
-              <h3 className="popular-title">{ev.title}</h3>
-              <p className="popular-detail">📅 {ev.date}</p>
-              <p className="popular-detail">📍 {ev.location}</p>
+              <h3 className="popular-title">{event.title}</h3>
+              <p className="popular-detail">📅 {event.date}</p>
+              <p className="popular-detail">📍 {event.location}</p>
+
               <div className="popular-footer">
-                <span className="view-count">
-                  👁️ 조회수 {ev.views.toLocaleString()}회
-                </span>
-                <button
-                  className="companion-link-btn"
-                  onClick={() => handleJoinRequest(ev.id)}
-                >
-                  나도 동행 구하기 &rarr;
+                <span className="views">👁 조회수 {event.views}</span>
+                <button className="join-btn" onClick={onOpenHostModal}>
+                  나도 동행 구하기 →
                 </button>
               </div>
             </div>
