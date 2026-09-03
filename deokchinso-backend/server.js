@@ -2,11 +2,12 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
-const PORT = 3000; // 프론트엔드(5173)와 겹치지 않게 8080 포트 사용
+const PORT = 3000;
 
-// 미들웨어 설정
-app.use(cors()); // 프론트엔드에서 오는 요청 허용
-app.use(express.json()); // JSON 형태의 요청 데이터를 파싱
+// 미들웨어 설정 (🌟 limit 옵션을 추가해서 용량 제한을 50MB까지 넉넉하게 풀어줍니다!)
+app.use(cors());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // 📂 메모리 임시 저장소 (서버를 껐다 켜면 초기화됩니다)
 let posts = [
