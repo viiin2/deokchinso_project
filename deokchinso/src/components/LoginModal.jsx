@@ -9,13 +9,16 @@ export default function LoginModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  // 구글 로그인 함수
+  // 구글 로그인 함수 (매번 계정 선택 창이 뜨도록 prompt 옵션 추가)
   const handleGoogleLogin = async () => {
     setErrorMsg("");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin, // 현재 실행 중인 주소(http://localhost:5173)로 자동 설정
+        redirectTo: window.location.origin,
+        queryParams: {
+          prompt: "select_account", // 🌟 이 옵션 덕분에 다른 구글 계정으로도 로그인할 수 있습니다!
+        },
       },
     });
 
