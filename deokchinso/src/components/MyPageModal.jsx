@@ -116,7 +116,25 @@ export default function MyPageModal({ isOpen, onClose }) {
                       📅 {item.date} | 📍 {item.location}
                     </p>
                   </div>
-                  <button className="mypage-action-btn host">관리하기</button>
+                  {/* 관리하기 버튼 예시 */}
+                  <button
+                    onClick={() => {
+                      // 관리하고자 하는 해당 모집글 정보를 상태에 담고 관리 모달을 띄움
+                      alert(`"${item.title}" 모집글 관리 페이지로 이동합니다!`);
+                      // 또는 setIsManageModalOpen(true); 등 관리 모달 상태 켜기
+                    }}
+                    style={{
+                      background: "#00c471",
+                      color: "white",
+                      border: "none",
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    관리하기
+                  </button>
                 </div>
               ))
             ) : (

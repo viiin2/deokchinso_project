@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import {
   locationOptions,
@@ -15,19 +15,21 @@ import MyPageModal from "./components/MyPageModal";
 import CommunityBoard from "./components/CommunityBoard";
 import GuidePage from "./components/GuidePage";
 import PopularEventsPage from "./components/PopularEventsPage";
+import ChatListModal from "./components/ChatListModal";
+import LoginModal from "./components/LoginModal";
+import { supabase } from "./supabase";
 
 export default function App() {
-  // 🌟 1. 서버에서 가져온 게시글 데이터를 저장할 상태
   const [posts, setPosts] = useState([]);
-
   const [activeMenu, setActiveMenu] = useState("동행 찾기");
   const [activeCategory, setActiveCategory] = useState("ani");
-
   const [location, setLocation] = useState(locationOptions[0]);
   const [genre, setGenre] = useState(genreOptions[0]);
   const [date, setDate] = useState(dateOptions[0]);
 
-  // 모달 상태 관리
+  const [user, setUser] = useState(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [currentCondition, setCurrentCondition] = useState({
@@ -42,19 +44,72 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isMyPageOpen, setIsMyPageOpen] = useState(false);
+  const [isChatListOpen, setIsChatListOpen] = useState(false);
 
-  // 🌟 2. 백엔드(8080포트)에서 데이터 불러오기 함수
+  const isMounted = useRef(false);
+  const [isFabOpen, setIsFabOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
+    if (activeMenu === "동행 찾기") {
+      setTimeout(() => {
+        try {
+          const elements = document.body.getElementsByTagName("*");
+          let targetElement = null;
+          for (let i = 0; i < elements.length; i++) {
+            if (
+              elements[i].children.length === 0 &&
+              elements[i].textContent.includes("장르별 실시간 모집")
+            ) {
+              targetElement = elements[i];
+              break;
+            }
+          }
+          if (targetElement) {
+            const headerOffset = 85;
+            const elementPosition = targetElement.getBoundingClientRect().top;
+            const offsetPosition =
+              elementPosition + window.pageYOffset - headerOffset;
+            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+          } else {
+            window.scrollTo({ top: 850, behavior: "smooth" });
+          }
+        } catch (error) {
+          window.scrollTo({ top: 850, behavior: "smooth" });
+        }
+      }, 150);
+    }
+  }, [activeCategory]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   const fetchPosts = async () => {
     try {
       const response = await fetch("http://localhost:3000/api/posts");
       const data = await response.json();
-      setPosts(data); // 불러온 데이터로 화면 업데이트
+      setPosts(data);
     } catch (error) {
-      console.error("데이터를 불러오는 중 에러 발생:", error);
+      console.error("데이터 불러오기 에러:", error);
     }
   };
 
-  // 🌟 3. 앱이 처음 켜질 때 딱 한 번 데이터 불러오기
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -66,8 +121,16 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* 네비게이션 바 */}
-      <header className="navbar">
+      <header
+        className="navbar"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          background: "white",
+          borderBottom: "1px solid #f0f0f0",
+        }}
+      >
         <div className="nav-left">
           <span className="logo-icon">덕</span>
           <h1 className="logo-text">덕친소</h1>
@@ -91,24 +154,83 @@ export default function App() {
             ),
           )}
         </nav>
-        <div className="nav-right">
+        <div
+          className="nav-right"
+          style={{ display: "flex", gap: "12px", alignItems: "center" }}
+        >
+          <button
+            onClick={() => {
+              setIsChatModalOpen(false);
+              setIsChatListOpen(true);
+            }}
+            style={{
+              background: "#ff4b72",
+              color: "white",
+              border: "none",
+              padding: "8px 14px",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              fontSize: "14px",
+            }}
+          >
+            💬 내 톡함
+          </button>
           <button className="host-btn" onClick={() => setIsHostModalOpen(true)}>
             호스트 등록
           </button>
+          {user ? (
+            <button
+              onClick={handleLogout}
+              style={{
+                background: "#f0f0f0",
+                color: "#555",
+                border: "none",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: "bold",
+              }}
+            >
+              로그아웃
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              style={{
+                background: "white",
+                color: "#ff4b72",
+                border: "1px solid #ff4b72",
+                padding: "7px 14px",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: "13px",
+              }}
+            >
+              로그인 / 회원가입
+            </button>
+          )}
           <div className="profile-img" onClick={() => setIsMyPageOpen(true)}>
             <img
-              src={
-                "https://mblogthumb-phinf.pstatic.net/MjAxOTA3MjdfMTI3/MDAxNTY0MjMyNDU0OTgz.oh-VWNn7vocO4NbjRrJzocbXTbi434N-p9Bu5cqF-wkg.AyqJFCQhrWCCsAKGuQGRAneD2Ko5jL_K9a1IAn7-NJ0g.JPEG.taegu1005/%EC%BA%A1%EC%B2%98_2019_07_21_16_34_57_566.jpg?type=w800"
-              }
+              src={user?.user_metadata?.avatar_url || MY_PROFILE_IMG}
               alt="내 프로필"
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                cursor: "pointer",
+                objectFit: "cover",
+              }}
             />
           </div>
         </div>
       </header>
-      {/* 메뉴별 본문 전환 */}
+
       {activeMenu === "동행 찾기" && (
         <HomeSection
-          posts={posts} // 🌟 4. 서버에서 받아온 posts 데이터를 넘겨줌
+          posts={posts}
           activeCategory={activeCategory}
           setActiveCategory={setActiveCategory}
           location={location}
@@ -132,9 +254,10 @@ export default function App() {
       )}
       {activeMenu === "인기 이벤트" && (
         <PopularEventsPage onOpenHostModal={() => setIsHostModalOpen(true)} />
-      )}{" "}
+      )}
       {activeMenu === "커뮤니티" && <CommunityBoard />}
       {activeMenu === "덕친소 가이드" && <GuidePage />}
+
       <footer className="footer-dark">
         <div className="footer-top">
           <div className="footer-logo-area">
@@ -153,17 +276,119 @@ export default function App() {
           <p>© 2026 Deokchinso Inc. All rights reserved.</p>
         </div>
       </footer>
-      {/* 모든 모달 */}
+
+      <div
+        style={{
+          position: "fixed",
+          bottom: "30px",
+          right: "30px",
+          display: "flex",
+          gap: "15px",
+          alignItems: "flex-end",
+          zIndex: 9900,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            position: "relative",
+          }}
+        >
+          {isFabOpen && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "60px",
+                background: "white",
+                borderRadius: "12px",
+                boxShadow: "0 4px 15px rgba(0,0,0,0.15)",
+                padding: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                width: "130px",
+              }}
+            >
+              {genreOptions.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => {
+                    setActiveCategory(g);
+                    setIsFabOpen(false);
+                  }}
+                  style={{
+                    border: "none",
+                    background:
+                      activeCategory === g ? "#fff5f5" : "transparent",
+                    color: activeCategory === g ? "#ff4b72" : "#333",
+                    fontWeight: activeCategory === g ? "bold" : "normal",
+                    padding: "10px",
+                    cursor: "pointer",
+                    textAlign: "center",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    width: "100%",
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setIsFabOpen(!isFabOpen)}
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              background: "#333",
+              color: "white",
+              border: "none",
+              fontSize: "22px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              transition: "transform 0.2s",
+            }}
+          >
+            {isFabOpen ? "✕" : "☰"}
+          </button>
+        </div>
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{
+            width: "56px",
+            height: "56px",
+            borderRadius: "50%",
+            background: "#ff4b72",
+            color: "white",
+            border: "none",
+            fontSize: "24px",
+            boxShadow: "0 4px 12px rgba(255,75,114,0.4)",
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          ↑
+        </button>
+      </div>
+
       <HostModal
         isOpen={isHostModalOpen}
         onClose={() => setIsHostModalOpen(false)}
-        onSuccess={fetchPosts} // 🌟 5. 글 작성 완료 시 새로고침 하도록 함수 넘김
+        onSuccess={fetchPosts}
       />
       <SearchResultsModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         searchCondition={currentCondition}
-        posts={posts} // 🌟 6. 검색 결과 모달에도 불러온 데이터 넘김
+        posts={posts}
       />
       <ChatModal
         isOpen={isChatModalOpen}
@@ -179,6 +404,24 @@ export default function App() {
         isOpen={isMyPageOpen}
         onClose={() => setIsMyPageOpen(false)}
         profileImg={MY_PROFILE_IMG}
+      />
+      <ChatListModal
+        isOpen={isChatListOpen}
+        onClose={() => setIsChatListOpen(false)}
+        onSelectRoom={(room) => {
+          // 🌟 목록에서 방을 눌렀을 때 'roomId'를 정확하게 ChatModal로 꽂아줍니다!
+          setSelectedPost({
+            roomId: room.roomId,
+            author: room.author,
+            title: room.title,
+          });
+          setIsChatListOpen(false);
+          setIsChatModalOpen(true);
+        }}
+      />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
       />
     </div>
   );

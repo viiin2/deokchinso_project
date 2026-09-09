@@ -587,12 +587,13 @@ body {
 }
 
 /* 9. 호스트 CTA 배너 (텍스트 왼쪽 정렬) */
+/* 9. 호스트 CTA 배너 (텍스트 왼쪽 정렬 및 하얀색 고정) */
 .cta-banner {
   background: linear-gradient(135deg, #ff4b72 0%, #ff7a96 100%);
   border-radius: 32px;
   display: flex;
   overflow: hidden;
-  color: white;
+  color: white !important; /* 👈 여기 추가 */
   padding: 60px;
   align-items: center;
   justify-content: space-between;
@@ -602,6 +603,7 @@ body {
   flex: 1;
   padding-right: 40px;
   text-align: left;
+  color: white !important; /* 👈 여기 추가 */
 }
 .cta-title {
   font-size: 32px;
@@ -609,6 +611,7 @@ body {
   line-height: 1.4;
   margin-bottom: 20px;
   text-align: left;
+  color: white !important; /* 👈 여기 추가 */
 }
 .cta-desc {
   font-size: 16px;
@@ -616,6 +619,7 @@ body {
   opacity: 0.9;
   margin-bottom: 32px;
   text-align: left;
+  color: white !important; /* 👈 여기 추가 */
 }
 .cta-btn {
   background: white;
@@ -2134,38 +2138,44 @@ body {
   box-sizing: border-box !important;
   margin: auto !important;
 }
+
 /* =========================================
-   🔧 화살표 크기 원상복구 및 모달창 중앙 고정 긴급 패치
+   🚨 화살표 및 모달창 완벽 해결 최종 패치
    ========================================= */
 
-/* 1. 거대해진 select 박스 화살표 크기 정상화 */
+/* 1. select 박스 화살표 크기 강제 정상화 (브라우저 기본 스타일 적용) */
 .input-group select {
-  appearance: auto !important;
   -webkit-appearance: menulist !important;
   -moz-appearance: menulist !important;
+  appearance: menulist !important;
   font-size: 14px !important;
-  line-height: normal !important;
+  height: auto !important;
+  padding: 4px 0 !important;
   width: 100% !important;
+  background: transparent !important;
 }
 
-/* 2. 모달창 위치를 무조건 화면 세로/가로 정중앙으로 고정 */
+/* 2. 모든 모달창 오버레이를 화면 전체 덮기 + 정중앙 배치 */
 .modal-overlay {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
   background-color: rgba(0, 0, 0, 0.6) !important;
   display: flex !important;
-  justify-content: center !important; /* 가로 중앙 */
-  align-items: center !important; /* 세로 중앙 (이게 핵심입니다!) */
-  z-index: 99999 !important;
-  overflow-y: auto !important;
+  justify-content: center !important;
+  align-items: center !important; /* 화면 세로 정중앙 */
+  z-index: 999999 !important;
+  margin: 0 !important;
   padding: 20px !important;
   box-sizing: border-box !important;
+  overflow-y: auto !important;
 }
 
-/* 모달 내용 박스도 마진 자동을 통해 완벽히 중앙에 오도록 처리 */
+/* 3. 모달 내용 박스가 절대 아래로 쏠리지 않고 화면 한가운데 오도록 강제 */
 .modal-content,
 .search-modal-content,
 .chat-modal-content,
@@ -2173,7 +2183,11 @@ body {
 .mypage-modal-content,
 .write-modal-content,
 .post-detail-modal-content {
+  position: relative !important;
   margin: auto !important;
   max-height: 85vh !important;
   overflow-y: auto !important;
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
 }

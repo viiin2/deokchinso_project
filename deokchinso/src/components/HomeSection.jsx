@@ -323,41 +323,6 @@ export default function HomeSection({
         </div>
       </section>
 
-      {/* 트렌딩 이벤트 */}
-      <section className="section-padding">
-        <div className="section-header">
-          <div>
-            <p className="sub-title">트렌딩 이벤트</p>
-            <h3 className="main-title">지금 가장 핫한 동행 이벤트지</h3>
-          </div>
-        </div>
-        <div className="trending-grid">
-          {trendingEvents.map((event) => (
-            <div
-              className="trending-card"
-              key={event.id}
-              onClick={() => {
-                setCurrentCondition({
-                  region: "전체",
-                  genre: event.title,
-                  date: "진행중",
-                });
-                setIsSearchModalOpen(true);
-              }}
-            >
-              <img src={event.img} alt={event.title} className="trending-img" />
-              <div className="trending-info">
-                <h4 className="trending-title">{event.title}</h4>
-                <p className="trending-desc">{event.desc}</p>
-                <p className="trending-count">
-                  🔥 {event.count}명 동행 구하는 중
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* 하단 배너 CTA */}
       <section className="section-padding">
         <div className="cta-banner">
