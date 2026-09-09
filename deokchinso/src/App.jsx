@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import {
   locationOptions,
@@ -46,43 +46,7 @@ export default function App() {
   const [isMyPageOpen, setIsMyPageOpen] = useState(false);
   const [isChatListOpen, setIsChatListOpen] = useState(false);
 
-  const isMounted = useRef(false);
   const [isFabOpen, setIsFabOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true;
-      return;
-    }
-    if (activeMenu === "동행 찾기") {
-      setTimeout(() => {
-        try {
-          const elements = document.body.getElementsByTagName("*");
-          let targetElement = null;
-          for (let i = 0; i < elements.length; i++) {
-            if (
-              elements[i].children.length === 0 &&
-              elements[i].textContent.includes("장르별 실시간 모집")
-            ) {
-              targetElement = elements[i];
-              break;
-            }
-          }
-          if (targetElement) {
-            const headerOffset = 85;
-            const elementPosition = targetElement.getBoundingClientRect().top;
-            const offsetPosition =
-              elementPosition + window.pageYOffset - headerOffset;
-            window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-          } else {
-            window.scrollTo({ top: 850, behavior: "smooth" });
-          }
-        } catch (error) {
-          window.scrollTo({ top: 850, behavior: "smooth" });
-        }
-      }, 150);
-    }
-  }, [activeCategory]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -117,6 +81,16 @@ export default function App() {
   const handleSearch = () => {
     setCurrentCondition({ region: location, genre: genre, date: date });
     setIsSearchModalOpen(true);
+  };
+
+  const handleCategorySelect = (categoryId) => {
+    setActiveCategory(categoryId);
+
+    if (activeMenu === "동행 찾기") {
+      document
+        .getElementById("recruitment-section")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   return (
@@ -232,7 +206,7 @@ export default function App() {
         <HomeSection
           posts={posts}
           activeCategory={activeCategory}
-          setActiveCategory={setActiveCategory}
+          onCategorySelect={handleCategorySelect}
           location={location}
           setLocation={setLocation}
           locationOptions={locationOptions}
@@ -315,7 +289,7 @@ export default function App() {
                 <button
                   key={g}
                   onClick={() => {
-                    setActiveCategory(g);
+                    handleCategorySelect(g);
                     setIsFabOpen(false);
                   }}
                   style={{
@@ -394,6 +368,7 @@ export default function App() {
         isOpen={isChatModalOpen}
         onClose={() => setIsChatModalOpen(false)}
         targetMate={selectedPost}
+        currentUser={user}
       />
       <ProfileModal
         isOpen={isProfileModalOpen}
@@ -414,6 +389,8 @@ export default function App() {
             roomId: room.roomId,
             author: room.author,
             title: room.title,
+            postId: room.postId,
+            roomType: room.roomType,
           });
           setIsChatListOpen(false);
           setIsChatModalOpen(true);

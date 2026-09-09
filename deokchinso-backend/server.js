@@ -3,14 +3,15 @@ const cors = require("cors");
 const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const DATABASE_PATH = process.env.DATABASE_PATH || "./deokchinso.db";
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // 1. 로컬 SQLite 데이터베이스 파일 연결 (프로젝트 폴더에 deokchinso.db 파일이 생깁니다)
-const db = new sqlite3.Database("./deokchinso.db", (err) => {
+const db = new sqlite3.Database(DATABASE_PATH, (err) => {
   if (err) {
     console.error("❌ SQL DB 연결 실패:", err.message);
   } else {
@@ -59,9 +60,40 @@ function initDatabase() {
     db.run(`
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id TEXT,
         sender TEXT,
         text TEXT,
         timestamp TEXT
+      )
+    `);
+
+    // 기존 DB에는 room_id가 없으므로, 이미 생성된 메시지 테이블도 보존한 채 확장합니다.
+    db.run("ALTER TABLE messages ADD COLUMN room_id TEXT", (err) => {
+      if (!err) {
+        console.log("메시지 테이블에 room_id 컬럼을 추가했습니다.");
+      } else if (!err.message.includes("duplicate column name")) {
+        console.error("메시지 room_id 컬럼 추가 실패:", err.message);
+      }
+    });
+
+    // 2-4. 모집글별 단체 채팅방과 참여자 테이블 생성
+    db.run(`
+      CREATE TABLE IF NOT EXISTS chat_rooms (
+        id TEXT PRIMARY KEY,
+        post_id TEXT,
+        title TEXT NOT NULL,
+        room_type TEXT NOT NULL DEFAULT 'group',
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS chat_room_members (
+        room_id TEXT NOT NULL,
+        member_id TEXT NOT NULL,
+        member_name TEXT NOT NULL,
+        joined_at TEXT NOT NULL,
+        PRIMARY KEY (room_id, member_id)
       )
     `);
 
@@ -544,38 +576,147 @@ app.post("/api/community/:id/comment", (req, res) => {
   });
 });
 
-// 7. 메시지(채팅) 저장
+// 7. 모집글 단체 채팅방 생성 또는 참여
+app.post("/api/chat-rooms", (req, res) => {
+  const { room_id: roomId, post_id: postId, title, member_id: memberId, member_name: memberName } =
+    req.body;
+
+  if (!roomId || !title?.trim() || !memberId || !memberName?.trim()) {
+    return res.status(400).json({
+      error: "room_id, title, member_id, member_name은 필수입니다.",
+    });
+  }
+
+  const now = new Date().toISOString();
+
+  db.serialize(() => {
+    db.run(
+      "INSERT OR IGNORE INTO chat_rooms (id, post_id, title, room_type, created_at) VALUES (?, ?, ?, 'group', ?)",
+      [roomId, postId || null, title.trim(), now],
+    );
+    db.run(
+      "INSERT OR IGNORE INTO chat_room_members (room_id, member_id, member_name, joined_at) VALUES (?, ?, ?, ?)",
+      [roomId, memberId, memberName.trim(), now],
+    );
+    db.get(
+      `
+        SELECT rooms.id AS room_id, rooms.post_id, rooms.title, rooms.room_type,
+          COUNT(members.member_id) AS member_count
+        FROM chat_rooms AS rooms
+        LEFT JOIN chat_room_members AS members ON members.room_id = rooms.id
+        WHERE rooms.id = ?
+        GROUP BY rooms.id
+      `,
+      [roomId],
+      (err, room) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        res.status(201).json(room);
+      },
+    );
+  });
+});
+
+// 8. 특정 채팅방의 메시지 내역 조회
+app.get("/api/messages/:roomId", (req, res) => {
+  const roomId = req.params.roomId;
+
+  db.all(
+    "SELECT * FROM messages WHERE room_id = ? ORDER BY id ASC",
+    [roomId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      res.json(rows);
+    },
+  );
+});
+
+// 9. 메시지(채팅) 저장
 app.post("/api/messages", (req, res) => {
-  const { sender, text } = req.body;
+  const { room_id: roomId, sender, text } = req.body;
+
+  if (!roomId || !sender || !text?.trim()) {
+    return res.status(400).json({ error: "room_id, sender, text는 필수입니다." });
+  }
+
+  const messageText = text.trim();
   const timestamp = new Date().toISOString();
 
   db.run(
-    "INSERT INTO messages (sender, text, timestamp) VALUES (?, ?, ?)",
-    [sender, text, timestamp],
+    "INSERT INTO messages (room_id, sender, text, timestamp) VALUES (?, ?, ?, ?)",
+    [roomId, sender, messageText, timestamp],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
 
       res.status(201).json({
         id: this.lastID,
+        room_id: roomId,
         sender,
-        text,
+        text: messageText,
         timestamp,
       });
     },
   );
 });
 
+// 10. 채팅방별 가장 최근 메시지 목록 조회
+app.get("/api/chat-rooms", (req, res) => {
+  const chatRoomsQuery = `
+    WITH latest_messages AS (
+      SELECT room_id, MAX(id) AS latest_message_id
+      FROM messages
+      WHERE room_id IS NOT NULL AND room_id <> ''
+      GROUP BY room_id
+    ), member_counts AS (
+      SELECT room_id, COUNT(member_id) AS member_count
+      FROM chat_room_members
+      GROUP BY room_id
+    )
+    SELECT
+      messages.id,
+      messages.room_id,
+      messages.sender,
+      messages.text,
+      messages.timestamp,
+      rooms.title AS room_title,
+      COALESCE(rooms.room_type, 'direct') AS room_type,
+      COALESCE(member_counts.member_count, 0) AS member_count,
+      rooms.post_id
+    FROM latest_messages
+    INNER JOIN messages ON messages.id = latest_messages.latest_message_id
+    LEFT JOIN chat_rooms AS rooms ON rooms.id = messages.room_id
+    LEFT JOIN member_counts ON member_counts.room_id = messages.room_id
+
+    UNION ALL
+
+    SELECT
+      NULL AS id,
+      rooms.id AS room_id,
+      NULL AS sender,
+      NULL AS text,
+      rooms.created_at AS timestamp,
+      rooms.title AS room_title,
+      rooms.room_type,
+      COALESCE(member_counts.member_count, 0) AS member_count,
+      rooms.post_id
+    FROM chat_rooms AS rooms
+    LEFT JOIN latest_messages ON latest_messages.room_id = rooms.id
+    LEFT JOIN member_counts ON member_counts.room_id = rooms.id
+    WHERE latest_messages.room_id IS NULL
+
+    ORDER BY timestamp DESC
+  `;
+
+  db.all(chatRoomsQuery, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    res.json(rows);
+  });
+});
+
 app.listen(PORT, () => {
   console.log(
     `🚀 덕친소 백엔드 서버가 http://localhost:${PORT} 에서 로컬 SQL 기반으로 실행 중입니다.`,
   );
-});
-// 🌟 [API] 사용자가 참여 중인 채팅방 목록 (또는 최근 메시지 목록) 조회
-app.get("/api/chat-rooms", (req, res) => {
-  db.all("SELECT * FROM messages ORDER BY id DESC", [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-
-    // 메시지들을 발신자/방 기준으로 묶어주거나 최근 대화 목록으로 가공
-    res.json(rows);
-  });
 });

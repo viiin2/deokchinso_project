@@ -10,7 +10,7 @@ import {
 export default function HomeSection({
   posts, // 백엔드 데이터
   activeCategory,
-  setActiveCategory,
+  onCategorySelect,
   location,
   setLocation,
   locationOptions,
@@ -83,7 +83,7 @@ export default function HomeSection({
           <button
             key={cat.id}
             className={`category-item ${activeCategory === cat.id ? "active" : ""}`}
-            onClick={() => setActiveCategory(cat.id)}
+            onClick={() => onCategorySelect(cat.id)}
           >
             <div className="category-icon">{cat.icon}</div>
             <span className="category-name">{cat.name}</span>
@@ -161,7 +161,11 @@ export default function HomeSection({
       </section>
 
       {/* 실시간 인기 모집 */}
-      <section className="section-padding">
+      <section
+        id="recruitment-section"
+        className="section-padding"
+        style={{ scrollMarginTop: "85px" }}
+      >
         <div className="section-header">
           <div>
             <p className="sub-title">장르별 실시간 모집</p>

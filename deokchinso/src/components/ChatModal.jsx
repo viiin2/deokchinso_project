@@ -1,8 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
 
-export default function ChatModal({ isOpen, onClose, targetMate }) {
+const GUEST_MEMBER_KEY = "deokchinso-chat-member-id";
+
+function getGuestMemberId() {
+  const fallbackId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const existingId = window.localStorage.getItem(GUEST_MEMBER_KEY);
+    if (existingId) return existingId;
+
+    window.localStorage.setItem(GUEST_MEMBER_KEY, fallbackId);
+  } catch (error) {
+    console.warn("게스트 채팅 ID 저장 실패:", error);
+  }
+
+  return fallbackId;
+}
+
+export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [participantCount, setParticipantCount] = useState(0);
+  const [messageError, setMessageError] = useState("");
+  const [guestMemberId] = useState(getGuestMemberId);
   const scrollRef = useRef();
 
   // 1. 모든 경우의 수를 뒤져서 어떻게든 상대방 이름과 제목을 찾아냅니다.
@@ -14,27 +34,65 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
     "알 수 없는 유저";
   const postTitle = targetMate?.title || targetMate?.postTitle || "동행 모집방";
   const postId = targetMate?.id || targetMate?.postId || "temp";
-
-  // 2. 🌟 제일 치명적이었던 버그 해결 🌟
-  // 목록에서 눌러서 들어왔으면 이미 있는 roomId를 그대로 쓰고, 새로 여는 방이면 [글ID___이름___제목] 형태로 절대 안 겹치는 고유값을 만듭니다.
-  const roomId = targetMate?.roomId || `${postId}___${mateName}___${postTitle}`;
-
-  const profileImg = `https://picsum.photos/seed/${encodeURIComponent(mateName)}/100/100`;
+  const isGroupChat = targetMate?.roomType !== "direct";
+  const roomId = targetMate?.roomId || `group_${postId}`;
+  const memberId = currentUser?.id || guestMemberId;
+  const memberName =
+    currentUser?.user_metadata?.nickname ||
+    currentUser?.user_metadata?.name ||
+    currentUser?.email?.split("@")[0] ||
+    `게스트 ${guestMemberId.slice(-4)}`;
+  const profileSeed = isGroupChat ? postTitle : mateName;
+  const profileImg = `https://picsum.photos/seed/${encodeURIComponent(profileSeed)}/100/100`;
 
   useEffect(() => {
-    if (isOpen) {
-      setMessages([]);
+    if (!isOpen) return undefined;
 
-      // 특수문자가 포함되어 있으므로 안전하게 인코딩하여 서버 요청
-      fetch(`http://localhost:3000/api/messages/${encodeURIComponent(roomId)}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("서버 에러");
-          return res.json();
-        })
-        .then((data) => setMessages(data))
-        .catch((err) => console.error("메시지 불러오기 실패:", err));
-    }
-  }, [isOpen, roomId]);
+    let isCancelled = false;
+
+    const loadChat = async () => {
+      setMessages([]);
+      setMessageError("");
+
+      try {
+        if (isGroupChat) {
+          const roomResponse = await fetch("http://localhost:3000/api/chat-rooms", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              room_id: roomId,
+              post_id: postId,
+              title: postTitle,
+              member_id: memberId,
+              member_name: memberName,
+            }),
+          });
+
+          if (!roomResponse.ok) throw new Error("단체 톡방에 참여하지 못했습니다.");
+
+          const room = await roomResponse.json();
+          if (!isCancelled) setParticipantCount(room.member_count || 0);
+        }
+
+        const messagesResponse = await fetch(
+          `http://localhost:3000/api/messages/${encodeURIComponent(roomId)}`,
+        );
+        if (!messagesResponse.ok) throw new Error("메시지를 불러오지 못했습니다.");
+
+        const data = await messagesResponse.json();
+        if (!isCancelled) setMessages(data);
+      } catch (error) {
+        if (!isCancelled) setMessageError(error.message);
+        console.error("메시지 불러오기 실패:", error);
+      }
+    };
+
+    loadChat();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, isGroupChat, memberId, memberName, postId, postTitle, roomId]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -42,29 +100,60 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const refreshMessages = async () => {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/api/messages/${encodeURIComponent(roomId)}`,
+        );
+        if (!response.ok) return;
+
+        const latestMessages = await response.json();
+        setMessages((previousMessages) => {
+          const isUnchanged =
+            previousMessages.length === latestMessages.length &&
+            previousMessages.every(
+              (message, index) => message.id === latestMessages[index].id,
+            );
+
+          return isUnchanged ? previousMessages : latestMessages;
+        });
+      } catch (error) {
+        console.error("메시지 동기화 실패:", error);
+      }
+    };
+
+    const pollingId = window.setInterval(refreshMessages, 3000);
+    return () => window.clearInterval(pollingId);
+  }, [isOpen, roomId]);
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     const messageData = {
-      room_id: roomId, // DB에 이 방 번호 통째로 저장
-      sender: "나",
+      room_id: roomId,
+      sender: memberName,
       text: newMessage,
     };
 
     try {
+      setMessageError("");
       const response = await fetch("http://localhost:3000/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(messageData),
       });
 
-      if (response.ok) {
-        const savedMessage = await response.json();
-        setMessages((prev) => [...prev, savedMessage]);
-        setNewMessage("");
-      }
+      if (!response.ok) throw new Error("메시지를 전송하지 못했습니다.");
+
+      const savedMessage = await response.json();
+      setMessages((prev) => [...prev, savedMessage]);
+      setNewMessage("");
     } catch (error) {
+      setMessageError(error.message);
       console.error("메시지 전송 에러:", error);
     }
   };
@@ -115,7 +204,7 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
                 color: "#222",
               }}
             >
-              {mateName} 님과의 톡
+              {isGroupChat ? `${postTitle} 단체 톡` : `${mateName} 님과의 톡`}
             </h3>
             <span
               style={{
@@ -128,7 +217,7 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
                 maxWidth: "250px",
               }}
             >
-              {postTitle}
+              {isGroupChat ? `${participantCount}명 참여 중` : postTitle}
             </span>
           </div>
           <button
@@ -170,7 +259,7 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
           }}
         >
           {messages.map((msg, index) => {
-            const isMe = msg.sender === "나";
+            const isMe = msg.sender === memberName || msg.sender === "나";
             return (
               <div
                 key={index}
@@ -196,12 +285,28 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
                 )}
                 <div
                   style={{
-                    display: "flex",
-                    flexDirection: isMe ? "row-reverse" : "row",
-                    alignItems: "flex-end",
                     maxWidth: "75%",
                   }}
                 >
+                  {isGroupChat && !isMe && (
+                    <span
+                      style={{
+                        display: "block",
+                        marginBottom: "4px",
+                        color: "#777",
+                        fontSize: "11px",
+                      }}
+                    >
+                      {msg.sender}
+                    </span>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: isMe ? "row-reverse" : "row",
+                      alignItems: "flex-end",
+                    }}
+                  >
                   <div
                     style={{
                       background: isMe ? "#ff4b72" : "white",
@@ -232,6 +337,7 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
                         })
                       : "방금 전"}
                   </span>
+                  </div>
                 </div>
               </div>
             );
@@ -280,6 +386,11 @@ export default function ChatModal({ isOpen, onClose, targetMate }) {
               전송
             </button>
           </form>
+          {messageError && (
+            <p style={{ color: "#d9365b", fontSize: "12px", margin: "8px 4px 0" }}>
+              {messageError}
+            </p>
+          )}
         </div>
       </div>
     </div>

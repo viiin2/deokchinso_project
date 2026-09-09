@@ -58,6 +58,7 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom }) {
           {chatRooms.length > 0 ? (
             chatRooms.map((room) => {
               const rawRoomId = room.room_id || "";
+              const isGroupChat = room.room_type === "group";
               let mateName = "알 수 없는 유저";
               let postTitle = "동행 모집방";
 
@@ -74,7 +75,12 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom }) {
                 postTitle = parts[1] || postTitle;
               }
 
-              const profileImg = `https://picsum.photos/seed/${encodeURIComponent(mateName)}/100/100`;
+              const roomTitle = isGroupChat ? room.room_title || postTitle : postTitle;
+              const displayName = isGroupChat ? roomTitle : `${mateName} 님`;
+              const subTitle = isGroupChat
+                ? `${room.member_count || 0}명 참여 중`
+                : postTitle;
+              const profileImg = `https://picsum.photos/seed/${encodeURIComponent(isGroupChat ? roomTitle : mateName)}/100/100`;
 
               return (
                 <div
@@ -84,7 +90,9 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom }) {
                     onSelectRoom({
                       roomId: rawRoomId,
                       author: mateName,
-                      title: postTitle,
+                      title: roomTitle,
+                      postId: room.post_id,
+                      roomType: room.room_type,
                     });
                   }}
                   style={{
@@ -133,7 +141,7 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom }) {
                           textOverflow: "ellipsis",
                         }}
                       >
-                        {mateName} 님
+                        {displayName}
                       </span>
                     </div>
                     <div
@@ -146,7 +154,7 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom }) {
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {postTitle}
+                      {subTitle}
                     </div>
                     <p
                       style={{
@@ -158,7 +166,7 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom }) {
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {room.text}
+                      {room.text || "아직 메시지가 없습니다."}
                     </p>
                   </div>
                 </div>
