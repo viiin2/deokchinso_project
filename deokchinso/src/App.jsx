@@ -46,6 +46,7 @@ export default function App() {
     genre: "",
     date: "",
   });
+  const [recruitmentSearchKeyword, setRecruitmentSearchKeyword] = useState("");
 
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -355,7 +356,16 @@ export default function App() {
   }, []);
 
   const handleSearch = () => {
+    setRecruitmentSearchKeyword("");
     setCurrentCondition({ region: location, genre: genre, date: date });
+    setIsSearchModalOpen(true);
+  };
+
+  const handleRecruitmentKeywordSearch = (event) => {
+    event.preventDefault();
+    if (!recruitmentSearchKeyword.trim()) return;
+
+    setCurrentCondition({ region: "전체", genre: "전체", date: "전체" });
     setIsSearchModalOpen(true);
   };
 
@@ -395,9 +405,6 @@ export default function App() {
         >
           <span className="logo-icon logo-intro-icon">덕</span>
           <h1 className="logo-text logo-intro-text">덕친소</h1>
-          <span className="logo-desc hidden-mobile">
-            덕질 친구를 소개합니다
-          </span>
         </div>
         <nav className="nav-menu">
           {[
@@ -417,6 +424,31 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <form className="nav-post-search" onSubmit={handleRecruitmentKeywordSearch}>
+          <label className="sr-only" htmlFor="recruitment-keyword-search">
+            동행 모집글 검색
+          </label>
+          <input
+            id="recruitment-keyword-search"
+            type="search"
+            value={recruitmentSearchKeyword}
+            onChange={(event) => setRecruitmentSearchKeyword(event.target.value)}
+            placeholder="모집글 검색"
+          />
+          <button type="submit" aria-label="모집글 검색">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <circle cx="10.8" cy="10.8" r="5.8" />
+              <path d="m15.2 15.2 4.3 4.3" />
+            </svg>
+          </button>
+        </form>
         <div
           className="nav-right"
           style={{ display: "flex", gap: "12px", alignItems: "center" }}
@@ -468,23 +500,7 @@ export default function App() {
           <button className="host-btn" onClick={() => handleOpenHostModal()}>
             <span aria-hidden="true">+</span> 동행방 모집
           </button>
-          {user ? (
-            <button
-              onClick={handleLogout}
-              style={{
-                background: "#f0f0f0",
-                color: "#555",
-                border: "none",
-                padding: "8px 12px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "13px",
-                fontWeight: "bold",
-              }}
-            >
-              로그아웃
-            </button>
-          ) : (
+          {user ? null : (
             <button
               onClick={() => setIsLoginModalOpen(true)}
               style={{
@@ -509,8 +525,8 @@ export default function App() {
               src={user ? navigationProfile.avatarUrl : defaultProfileAvatar}
               alt="내 프로필"
               style={{
-                width: "40px",
-                height: "40px",
+                width: "44px",
+                height: "44px",
                 borderRadius: "50%",
                 cursor: "pointer",
                 objectFit: "cover",
@@ -553,6 +569,7 @@ export default function App() {
           currentUser={user}
           currentUserProfile={currentUserProfile}
           focusTarget={communityFocusTarget}
+          onFocusHandled={() => setCommunityFocusTarget(null)}
           onRequireLogin={() => setIsLoginModalOpen(true)}
         />
       )}
@@ -710,6 +727,7 @@ export default function App() {
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         searchCondition={currentCondition}
+        searchKeyword={recruitmentSearchKeyword}
         posts={posts}
         bookmarkedPostIds={bookmarks.map((bookmark) => bookmark.id)}
         onToggleBookmark={handleToggleBookmark}
@@ -745,6 +763,10 @@ export default function App() {
         onClose={() => setIsMyPageOpen(false)}
         currentUser={user}
         currentUserProfile={currentUserProfile}
+        onLogout={() => {
+          setIsMyPageOpen(false);
+          handleLogout();
+        }}
         onProfileUpdated={(profile) => setCurrentUserProfile(profile)}
         bookmarks={bookmarks}
         appliedPosts={appliedPosts}
@@ -781,6 +803,7 @@ export default function App() {
         }}
       />
       <LoginModal
+        key={isLoginModalOpen ? "login-modal-open" : "login-modal-closed"}
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
       />

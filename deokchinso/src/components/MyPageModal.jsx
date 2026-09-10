@@ -7,6 +7,7 @@ export default function MyPageModal({
   onClose,
   currentUser,
   currentUserProfile,
+  onLogout,
   onProfileUpdated,
   bookmarks,
   appliedPosts,
@@ -39,6 +40,7 @@ export default function MyPageModal({
       currentUser={currentUser}
       profile={getUserProfile(currentUser, currentUserProfile)}
       onClose={onClose}
+      onLogout={onLogout}
       onProfileUpdated={onProfileUpdated}
       bookmarks={bookmarks || []}
       appliedPosts={appliedPosts || []}
@@ -54,6 +56,7 @@ function MyPageContent({
   currentUser,
   profile,
   onClose,
+  onLogout,
   onProfileUpdated,
   bookmarks,
   appliedPosts,
@@ -165,9 +168,27 @@ function MyPageContent({
       <div className="mypage-modal-content" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h3>마이페이지</h3>
-          <button className="close-btn" onClick={onClose}>
-            ✕
-          </button>
+          <div style={{ alignItems: "center", display: "flex", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                background: "#f5f5f5",
+                border: "none",
+                borderRadius: "8px",
+                color: "#666",
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: 800,
+                padding: "8px 10px",
+              }}
+            >
+              로그아웃
+            </button>
+            <button className="close-btn" onClick={onClose}>
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="mypage-profile-banner">

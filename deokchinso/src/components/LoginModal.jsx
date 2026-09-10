@@ -235,11 +235,14 @@ export default function LoginModal({ isOpen, onClose }) {
 
         <form
           onSubmit={handleEmailAuth}
+          autoComplete="off"
           style={{ display: "flex", flexDirection: "column", gap: "14px" }}
         >
           {isSignup && (
             <input
               type="text"
+              name="signup-nickname"
+              autoComplete="nickname"
               placeholder="닉네임 (2~20자)"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -258,6 +261,8 @@ export default function LoginModal({ isOpen, onClose }) {
           )}
           <input
             type="email"
+            name={isSignup ? "signup-email" : "login-email"}
+            autoComplete={isSignup ? "off" : "username"}
             placeholder="이메일 주소"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -273,6 +278,8 @@ export default function LoginModal({ isOpen, onClose }) {
           />
           <input
             type="password"
+            name={isSignup ? "signup-password" : "login-password"}
+            autoComplete={isSignup ? "new-password" : "current-password"}
             placeholder={isSignup ? "비밀번호 (8자 이상)" : "비밀번호"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -290,6 +297,8 @@ export default function LoginModal({ isOpen, onClose }) {
             <>
               <input
                 type="password"
+                name="signup-password-confirm"
+                autoComplete="new-password"
                 placeholder="비밀번호 확인"
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
@@ -318,7 +327,7 @@ export default function LoginModal({ isOpen, onClose }) {
                   checked={agreedToTerms}
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
                 />
-                서비스 이용 약관 및 개인정보 처리방침에 동의합니다. (필수)
+                서비스 이용 약관 및 개인정보 처리방침에 동의합니다.
               </label>
             </>
           )}
@@ -355,8 +364,11 @@ export default function LoginModal({ isOpen, onClose }) {
               setIsSignup(!isSignup);
               setErrorMsg("");
               setSuccessMsg("");
+              setEmail("");
+              setDisplayName("");
               setPassword("");
               setPasswordConfirm("");
+              setAgreedToTerms(false);
             }}
             style={{
               background: "none",

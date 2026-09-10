@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { getUserProfile } from "../profileUtils";
 
+const COMMON_TAGS = ["#첫동행환영", "#인원모집", "#안전동행"];
+const CATEGORY_TAGS = {
+  "K-POP": ["#콘서트동행", "#응원봉", "#굿즈줄서기"],
+  애니메이션: ["#팝업스토어", "#코믹월드", "#굿즈오픈런"],
+  게임: ["#직관동행", "#랭크듀오", "#게임친구"],
+  "만화/웹툰": ["#전시회동행", "#팝업스토어", "#굿즈오픈런"],
+  뮤지컬: ["#공연동행", "#티켓수령", "#커튼콜"],
+  스포츠: ["#직관동행", "#응원석", "#유니폼"],
+  아이돌: ["#쇼케이스", "#포토카드", "#응원봉"],
+  코스프레: ["#코스어", "#촬영동행", "#행사동행"],
+};
+
 function createInitialFormData(initialEvent) {
   return {
     category: initialEvent?.category === "게임/e스포츠" ? "게임" : initialEvent?.category || "K-POP",
@@ -31,6 +43,16 @@ export default function HostModal({
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleTagSuggestion = (tag) => {
+    setFormData((previous) => {
+      const tags = previous.tag.trim().split(/\s+/).filter(Boolean);
+      const nextTags = tags.includes(tag)
+        ? tags.filter((currentTag) => currentTag !== tag)
+        : [...tags, tag];
+      return { ...previous, tag: nextTags.join(" ") };
+    });
   };
 
   // 🌟 이미지 파일 업로드 처리 함수 (파일을 읽어서 문자열로 변환)
@@ -215,6 +237,25 @@ export default function HostModal({
                 onChange={handleChange}
                 placeholder="예: 티켓 수령 동행 / 굿즈 줄서기"
               />
+              <div className="tag-suggestion-area">
+                <span className="tag-suggestion-label">✨ 자주 쓰는 태그</span>
+                <div className="tag-suggestion-list">
+                  {[...(CATEGORY_TAGS[formData.category] || []), ...COMMON_TAGS].map((tag) => {
+                    const isSelected = formData.tag.split(/\s+/).includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={`tag-suggestion-chip ${isSelected ? "selected" : ""}`}
+                        aria-pressed={isSelected}
+                        onClick={() => handleTagSuggestion(tag)}
+                      >
+                        {isSelected ? "✓ " : "+ "}{tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             <button type="submit" className="submit-btn">

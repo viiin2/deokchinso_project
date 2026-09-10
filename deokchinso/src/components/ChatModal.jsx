@@ -406,7 +406,7 @@ export default function ChatModal({
                   size={36}
                 />
               )}
-              <div style={{ maxWidth: "75%" }}>
+              <div style={{ maxWidth: "84%" }}>
                 {!message.isMine && (
                   <span
                     style={{

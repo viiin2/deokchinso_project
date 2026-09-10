@@ -46,6 +46,7 @@ function toCommunityComment(comment) {
 function toCommunityPost(post) {
   return {
     ...post,
+    source: "supabase",
     author: post.author_name || "덕친소 회원",
     authorId: post.author_id,
     avatarUrl: post.author_avatar_url,
@@ -84,6 +85,7 @@ export default function CommunityBoard({
   currentUser,
   currentUserProfile,
   focusTarget,
+  onFocusHandled,
   onRequireLogin,
 }) {
   const [posts, setPosts] = useState([]);
@@ -105,6 +107,7 @@ export default function CommunityBoard({
   const [isWriting, setIsWriting] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [newComment, setNewComment] = useState("");
+  const [pendingCommentFocus, setPendingCommentFocus] = useState(null);
   const commentRefs = useRef(new Map());
 
   const fetchCommunityPosts = async () => {
@@ -151,25 +154,32 @@ export default function CommunityBoard({
   useEffect(() => {
     if (!focusTarget?.postId || !posts.length) return;
 
+    const targetSource = focusTarget.source || "supabase";
     const targetPost = posts.find(
-      (post) => String(post.id) === String(focusTarget.postId),
+      (post) =>
+        post.source === targetSource && String(post.id) === String(focusTarget.postId),
     );
     if (!targetPost) return undefined;
 
-    const openTargetTimer = window.setTimeout(() => setSelectedPost(targetPost), 0);
+    const openTargetTimer = window.setTimeout(() => {
+      setSelectedPost(targetPost);
+      setPendingCommentFocus(focusTarget.commentId || null);
+      onFocusHandled?.();
+    }, 0);
     return () => window.clearTimeout(openTargetTimer);
-  }, [focusTarget, posts]);
+  }, [focusTarget, onFocusHandled, posts]);
 
   useEffect(() => {
-    if (!focusTarget?.commentId || !selectedPost) return undefined;
+    if (!pendingCommentFocus || !selectedPost) return undefined;
 
     const scrollTimer = window.setTimeout(() => {
       commentRefs.current
-        .get(String(focusTarget.commentId))
+        .get(String(pendingCommentFocus))
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setPendingCommentFocus(null);
     }, 80);
     return () => window.clearTimeout(scrollTimer);
-  }, [focusTarget, selectedPost]);
+  }, [pendingCommentFocus, selectedPost]);
 
   const filteredPosts = posts.filter((post) => post.category === activeTab);
 
@@ -674,6 +684,7 @@ export default function CommunityBoard({
             </div>
 
             <form
+              className="comment-form"
               onSubmit={handleCommentSubmit}
               style={{ display: "flex", gap: "8px", marginBottom: "20px" }}
             >
@@ -694,7 +705,6 @@ export default function CommunityBoard({
                 type="submit"
                 style={{
                   padding: "0 20px",
-                  backgroundColor: "#18181b",
                   color: "white",
                   borderRadius: "8px",
                   border: "none",

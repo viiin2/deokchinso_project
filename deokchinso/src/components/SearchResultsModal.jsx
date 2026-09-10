@@ -5,6 +5,7 @@ export default function SearchResultsModal({
   isOpen,
   onClose,
   searchCondition,
+  searchKeyword = "",
   posts,
   bookmarkedPostIds,
   onToggleBookmark,
@@ -25,6 +26,7 @@ export default function SearchResultsModal({
       roomId: `mock_${post.id}`,
     })),
   ];
+  const normalizedKeyword = searchKeyword.trim().toLocaleLowerCase("ko-KR");
 
   const filteredPosts = allPosts.filter((post) => {
     const postRegion = post.location || post.region || "";
@@ -49,21 +51,31 @@ export default function SearchResultsModal({
       searchCondition.date === "언제든 좋음" ||
       searchCondition.date.includes("전체") ||
       postDate.includes(searchCondition.date);
+    const isKeywordMatch =
+      !normalizedKeyword ||
+      [post.title, post.tag, post.category, post.genre, post.location, post.region, post.author]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("ko-KR")
+        .includes(normalizedKeyword);
 
-    return isRegionMatch && isGenreMatch && isDateMatch;
+    return isRegionMatch && isGenreMatch && isDateMatch && isKeywordMatch;
   });
 
   return (
     <div className="modal-overlay">
       <div className="modal-content search-modal-content">
         <div className="modal-header">
-          <h3>🔍 검색 결과</h3>
+          <h3>
+            🔍 {normalizedKeyword ? `“${searchKeyword.trim()}” 검색 결과` : "검색 결과"}
+          </h3>
           <p
             className="search-condition-text"
             style={{ color: "#f43f5e", fontSize: "14px" }}
           >
-            선택 조건: {searchCondition.region} / {searchCondition.genre} /{" "}
-            {searchCondition.date}
+            {normalizedKeyword
+              ? "제목, 태그, 장르, 장소, 작성자에서 검색했습니다."
+              : `선택 조건: ${searchCondition.region} / ${searchCondition.genre} / ${searchCondition.date}`}
           </p>
           <button className="close-btn" onClick={onClose}>
             ✕
