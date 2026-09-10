@@ -289,6 +289,30 @@ export default function App() {
     setIsChatModalOpen(true);
   };
 
+  const handleDeleteRecruitmentPost = async (post) => {
+    if (!user || !post?.author_user_id || post.author_user_id !== user.id) return;
+    if (!window.confirm("이 모집글을 삭제할까요? 삭제한 글은 복구할 수 없습니다.")) return;
+
+    try {
+      const response = await fetch(`http://localhost:3000/api/posts/${post.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ author_user_id: user.id }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "모집글 삭제에 실패했습니다.");
+      }
+
+      setPosts((currentPosts) => currentPosts.filter((currentPost) => currentPost.id !== post.id));
+      setIsRecruitmentDetailOpen(false);
+      setSelectedPost(null);
+    } catch (error) {
+      console.error("모집글 삭제 실패:", error);
+      alert(error.message || "모집글 삭제에 실패했습니다.");
+    }
+  };
+
   const handleOpenHostModal = (event = null) => {
     if (!user) {
       setIsLoginModalOpen(true);
@@ -533,25 +557,6 @@ export default function App() {
         />
       )}
 
-      <footer className="footer-dark">
-        <div className="footer-top">
-          <div className="footer-logo-area">
-            <div className="footer-logo-row">
-              <span className="logo-icon">덕</span>
-              <span className="footer-logo-text">덕친소</span>
-            </div>
-            <p className="footer-desc">
-              덕친소는 팬들의 더 행복하고 안전한 문화 예술 향유를
-              <br />
-              위해 동행 매칭 서비스를 제공하는 플랫폼입니다.
-            </p>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <p>© 2026 Deokchinso Inc. All rights reserved.</p>
-        </div>
-      </footer>
-
       <div
         style={{
           position: "fixed",
@@ -714,9 +719,14 @@ export default function App() {
         isOpen={isRecruitmentDetailOpen}
         onClose={() => setIsRecruitmentDetailOpen(false)}
         post={selectedPost}
+        isOwnPost={
+          Boolean(user && selectedPost) &&
+          selectedPost.author_user_id === user.id
+        }
         isBookmarked={bookmarks.some((bookmark) => bookmark.id === bookmarkKey(selectedPost || {}))}
         onToggleBookmark={handleToggleBookmark}
         onStartChat={handleStartChat}
+        onDeletePost={handleDeleteRecruitmentPost}
       />
       <ChatModal
         isOpen={isChatModalOpen}

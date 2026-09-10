@@ -155,9 +155,18 @@ export default function HomeSection({
                 </select>
               </div>
             </div>
-            <button className="search-submit" onClick={handleSearch}>
-              🔍 맞춤 최애 메이트 찾기
-            </button>
+            <div className="search-actions">
+              <button className="search-submit" onClick={handleSearch}>
+                🔍 맞춤 최애 메이트 찾기
+              </button>
+              <button
+                type="button"
+                className="search-host-button"
+                onClick={() => onOpenHostModal()}
+              >
+                ＋ 동행 모집글 만들기
+              </button>
+            </div>
           </div>
         </div>
         <div className="hero-image">
@@ -230,54 +239,58 @@ export default function HomeSection({
                     📍 {post.location || post.region}
                   </p>
                   <div className="card-footer">
-                    <div
-                      className="author-info"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedUser(post);
-                        setIsProfileModalOpen(true);
-                      }}
-                    >
-                      <img
-                        src={getPostHostProfile(post).avatarUrl}
-                        alt="작성자"
-                      />
-                      <span>{getPostHostProfile(post).displayName}</span>
+                    <div className="card-footer-top">
+                      <div
+                        className="author-info"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedUser(post);
+                          setIsProfileModalOpen(true);
+                        }}
+                      >
+                        <img
+                          src={getPostHostProfile(post).avatarUrl}
+                          alt="작성자"
+                        />
+                        <span>{getPostHostProfile(post).displayName}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`heart-button ${
+                          bookmarkedPostIds?.includes(post.roomId) ? "is-bookmarked" : ""
+                        }`}
+                        aria-label={
+                          bookmarkedPostIds?.includes(post.roomId)
+                            ? "찜한 모집글 해제"
+                            : "모집글 찜하기"
+                        }
+                        aria-pressed={bookmarkedPostIds?.includes(post.roomId)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleBookmark(post);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: bookmarkedPostIds?.includes(post.roomId) ? "#ff4b72" : "#999",
+                          cursor: "pointer",
+                          fontSize: "22px",
+                          lineHeight: 1,
+                          marginLeft: "auto",
+                          padding: "2px 4px",
+                        }}
+                        title={
+                          bookmarkedPostIds?.includes(post.roomId)
+                            ? "찜 해제"
+                            : "찜하기"
+                        }
+                      >
+                        {bookmarkedPostIds?.includes(post.roomId) ? "♥" : "♡"}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className={`heart-button ${
-                        bookmarkedPostIds?.includes(post.roomId) ? "is-bookmarked" : ""
-                      }`}
-                      aria-label={
-                        bookmarkedPostIds?.includes(post.roomId)
-                          ? "찜한 모집글 해제"
-                          : "모집글 찜하기"
-                      }
-                      aria-pressed={bookmarkedPostIds?.includes(post.roomId)}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onToggleBookmark(post);
-                      }}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: bookmarkedPostIds?.includes(post.roomId) ? "#ff4b72" : "#999",
-                        cursor: "pointer",
-                        fontSize: "22px",
-                        lineHeight: 1,
-                        marginLeft: "auto",
-                        padding: "2px 4px",
-                      }}
-                      title={
-                        bookmarkedPostIds?.includes(post.roomId)
-                          ? "찜 해제"
-                          : "찜하기"
-                      }
-                    >
-                      {bookmarkedPostIds?.includes(post.roomId) ? "♥" : "♡"}
-                    </button>
-                    <span className="card-tag">{post.tag || "#동행환영"}</span>
+                    <span className="card-tag" title={post.tag || "동행환영"}>
+                      🏷️ {post.tag || "동행환영"}
+                    </span>
                   </div>
                 </div>
               </div>

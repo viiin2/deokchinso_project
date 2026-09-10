@@ -293,7 +293,6 @@ body {
   background-color: var(--border-color);
 }
 .search-submit {
-  width: 100%;
   background-color: var(--primary);
   color: white;
   border: none;
@@ -305,8 +304,32 @@ body {
   transition: 0.2s;
   box-shadow: 0 4px 12px rgba(255, 75, 114, 0.3);
 }
+.search-actions {
+  display: flex;
+  gap: 10px;
+}
+.search-actions .search-submit {
+  flex: 1.35;
+}
 .search-submit:hover {
   background-color: var(--primary-hover);
+  transform: translateY(-2px);
+}
+.search-host-button {
+  background: #fff8fa;
+  border: 1px solid #ffb6c6;
+  border-radius: 16px;
+  color: #d9365b;
+  cursor: pointer;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 16px 14px;
+  transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+.search-host-button:hover {
+  background: #fff0f3;
+  box-shadow: 0 5px 12px rgba(255, 75, 114, 0.12);
   transform: translateY(-2px);
 }
 
@@ -448,8 +471,14 @@ body {
   padding-top: 16px;
   border-top: 1px solid var(--border-color);
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 10px;
+}
+.card-footer-top {
   align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-width: 0;
 }
 .author-info {
   display: flex;
@@ -464,12 +493,19 @@ body {
   border-radius: 50%;
 }
 .card-tag {
-  background-color: #f4f4f5;
-  color: var(--text-gray);
-  font-size: 10px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
+  align-self: flex-start;
+  background-color: #fff1f4;
+  border-radius: 999px;
+  color: #c73758;
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 6px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 6. 안심 정책 가이드 (왼쪽 정렬) */
@@ -712,6 +748,9 @@ body {
     height: 300px;
   }
   .search-inputs {
+    flex-direction: column;
+  }
+  .search-actions {
     flex-direction: column;
   }
   .divider {
@@ -2455,6 +2494,8 @@ body {
 .heart-button::after { content: "✦"; right: -5px; top: 0; }
 .heart-button.is-bookmarked::before { animation: heart-spark-left 500ms ease-out both; }
 .heart-button.is-bookmarked::after { animation: heart-spark-right 540ms 35ms ease-out both; }
+.heart-button:active::before { animation: heart-spark-left 420ms ease-out both; }
+.heart-button:active::after { animation: heart-spark-right 450ms 25ms ease-out both; }
 @keyframes heart-pop {
   0% { transform: scale(0.7); }
   55% { transform: scale(1.35); }
@@ -2491,8 +2532,8 @@ body {
 }
 
 .chat-message-row { animation: chat-message-in 230ms cubic-bezier(0.2, 0.8, 0.3, 1) both; }
-.chat-message-row.is-mine { transform-origin: right bottom; }
-.chat-message-row.is-other { transform-origin: left bottom; }
+.chat-message-row.is-mine { align-self: flex-end; flex-direction: row-reverse !important; margin-left: auto; transform-origin: right bottom; }
+.chat-message-row.is-other { align-self: flex-start; margin-right: auto; transform-origin: left bottom; }
 @keyframes chat-message-in {
   from { opacity: 0; transform: translateY(8px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }

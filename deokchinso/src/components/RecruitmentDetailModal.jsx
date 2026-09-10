@@ -7,6 +7,8 @@ export default function RecruitmentDetailModal({
   isBookmarked,
   onToggleBookmark,
   onStartChat,
+  isOwnPost,
+  onDeletePost,
 }) {
   if (!isOpen || !post) return null;
 
@@ -138,10 +140,25 @@ export default function RecruitmentDetailModal({
           </button>
         </div>
 
-        <div style={{ color: "#444", fontSize: "15px", lineHeight: 1.75, padding: "20px 2px" }}>
-          <p style={{ marginTop: 0 }}>
-            {post.content ||
-              `${post.title} 동행 메이트를 모집합니다. 일정과 장소를 확인하고 편하게 채팅으로 문의해 주세요.`}
+        <div
+          style={{
+            color: "#444",
+            fontSize: "15px",
+            lineHeight: 1.75,
+            padding: "20px 2px",
+            textAlign: "left",
+          }}
+        >
+          <p style={{ marginTop: 0, textAlign: "left", whiteSpace: "pre-wrap" }}>
+            {post.content ? (
+              post.content
+            ) : (
+              <>
+                {post.title} 동행 메이트를 모집합니다.
+                <br />
+                일정과 장소를 확인하고 편하게 채팅으로 문의해 주세요.
+              </>
+            )}
           </p>
           <div
             style={{
@@ -159,23 +176,43 @@ export default function RecruitmentDetailModal({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onStartChat(post)}
-          style={{
-            background: "#ff4b72",
-            border: "none",
-            borderRadius: "12px",
-            color: "white",
-            cursor: "pointer",
-            fontSize: "16px",
-            fontWeight: 800,
-            padding: "15px",
-            width: "100%",
-          }}
-        >
-          💬 {hostProfile.displayName}님에게 채팅하기
-        </button>
+        {isOwnPost ? (
+          <button
+            type="button"
+            onClick={() => onDeletePost?.(post)}
+            style={{
+              background: "white",
+              border: "1px solid #f3a5b6",
+              borderRadius: "12px",
+              color: "#d9365b",
+              cursor: "pointer",
+              fontSize: "15px",
+              fontWeight: 800,
+              padding: "15px",
+              width: "100%",
+            }}
+          >
+            🗑️ 내가 작성한 모집글 삭제
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onStartChat(post)}
+            style={{
+              background: "#ff4b72",
+              border: "none",
+              borderRadius: "12px",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: 800,
+              padding: "15px",
+              width: "100%",
+            }}
+          >
+            💬 {hostProfile.displayName}님에게 채팅하기
+          </button>
+        )}
       </section>
     </div>
   );

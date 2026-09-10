@@ -517,6 +517,28 @@ app.post("/api/posts", (req, res) => {
   );
 });
 
+// 2-1. 모집글 삭제: 작성자 계정 ID가 일치하는 글만 삭제합니다.
+app.delete("/api/posts/:id", (req, res) => {
+  const postId = req.params.id;
+  const authorUserId = req.body?.author_user_id;
+  if (!authorUserId) {
+    return res.status(401).json({ error: "로그인한 작성자 정보가 필요합니다." });
+  }
+
+  db.get("SELECT author_user_id FROM posts WHERE id = ?", [postId], (findError, post) => {
+    if (findError) return res.status(500).json({ error: findError.message });
+    if (!post) return res.status(404).json({ error: "모집글을 찾을 수 없습니다." });
+    if (post.author_user_id !== authorUserId) {
+      return res.status(403).json({ error: "작성자만 모집글을 삭제할 수 있습니다." });
+    }
+
+    db.run("DELETE FROM posts WHERE id = ?", [postId], function (deleteError) {
+      if (deleteError) return res.status(500).json({ error: deleteError.message });
+      res.status(204).end();
+    });
+  });
+});
+
 // 3. 커뮤니티 글 목록 조회 (댓글을 다시 배열로 변환해서 응답)
 app.get("/api/community", (req, res) => {
   db.all("SELECT * FROM community ORDER BY id DESC", [], (err, rows) => {

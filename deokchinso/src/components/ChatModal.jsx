@@ -391,9 +391,12 @@ export default function ChatModal({
               className={`chat-message-row ${message.isMine ? "is-mine" : "is-other"}`}
               style={{
                 alignItems: "flex-end",
+                alignSelf: message.isMine ? "flex-end" : "flex-start",
                 display: "flex",
                 flexDirection: message.isMine ? "row-reverse" : "row",
                 gap: "8px",
+                marginLeft: message.isMine ? "auto" : 0,
+                marginRight: message.isMine ? 0 : "auto",
               }}
             >
               {!message.isMine && (

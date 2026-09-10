@@ -277,6 +277,41 @@ export default function CommunityBoard({
     }
   };
 
+  const handleDeleteCommunityPost = async () => {
+    if (
+      !currentUser ||
+      !selectedPost ||
+      selectedPost.source === "legacy" ||
+      selectedPost.authorId !== currentUser.id
+    ) {
+      return;
+    }
+    if (!window.confirm("이 커뮤니티 글을 삭제할까요? 댓글도 함께 삭제되며 복구할 수 없습니다.")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("community_posts")
+        .delete()
+        .eq("id", selectedPost.id);
+      if (error) throw error;
+
+      setPosts((currentPosts) =>
+        currentPosts.filter((post) => post.id !== selectedPost.id),
+      );
+      setSelectedPost(null);
+    } catch (error) {
+      console.error("커뮤니티 글 삭제 실패:", error);
+      alert("커뮤니티 글 삭제에 실패했습니다.");
+    }
+  };
+
+  const isMySelectedCommunityPost =
+    Boolean(currentUser && selectedPost) &&
+    selectedPost.source !== "legacy" &&
+    selectedPost.authorId === currentUser.id;
+
   return (
     <div
       className="community-board-container"
@@ -522,18 +557,38 @@ export default function CommunityBoard({
               >
                 {selectedPost.category}
               </span>
-              <button
-                onClick={() => setSelectedPost(null)}
-                style={{
-                  border: "none",
-                  background: "none",
-                  fontSize: "20px",
-                  cursor: "pointer",
-                  color: "#a1a1aa",
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ alignItems: "center", display: "flex", gap: "8px" }}>
+                {isMySelectedCommunityPost && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteCommunityPost}
+                    style={{
+                      background: "#fff4f5",
+                      border: "1px solid #f2a9b8",
+                      borderRadius: "7px",
+                      color: "#d9365b",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      padding: "7px 9px",
+                    }}
+                  >
+                    삭제
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedPost(null)}
+                  style={{
+                    border: "none",
+                    background: "none",
+                    fontSize: "20px",
+                    cursor: "pointer",
+                    color: "#a1a1aa",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <h3
