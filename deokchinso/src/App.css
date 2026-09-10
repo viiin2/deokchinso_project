@@ -84,11 +84,47 @@ body {
   gap: 20px;
 }
 .host-btn {
-  background: none;
-  border: none;
-  font-weight: 600;
+  align-items: center;
+  background: #fff5f5;
+  border: 1px solid #ffb7c7;
+  border-radius: 8px;
+  color: #c72d4d;
+  display: inline-flex;
+  font-weight: 700;
   font-size: 14px;
+  gap: 6px;
+  padding: 8px 12px;
   cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+.host-btn:hover {
+  background: #ffe7ed;
+  transform: translateY(-1px);
+}
+
+.quick-action-menu {
+  animation: quick-action-menu-in 180ms ease-out;
+  transform-origin: bottom right;
+}
+.quick-action-category:hover {
+  background: #fff5f5 !important;
+  transform: translateX(-2px);
+}
+.quick-action-button:hover {
+  transform: translateY(-2px);
+}
+.quick-action-button:active {
+  transform: translateY(0) scale(0.96);
+}
+@keyframes quick-action-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .profile-img {
   width: 36px;

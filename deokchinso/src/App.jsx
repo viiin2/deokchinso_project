@@ -4,6 +4,7 @@ import {
   locationOptions,
   genreOptions,
   dateOptions,
+  categories,
   MY_PROFILE_IMG,
 } from "./data/mockData";
 import HomeSection from "./components/HomeSection";
@@ -18,6 +19,9 @@ import PopularEventsPage from "./components/PopularEventsPage";
 import ChatListModal from "./components/ChatListModal";
 import LoginModal from "./components/LoginModal";
 import { supabase } from "./supabase";
+
+// 🌟 1. 방금 만든 ChatRoom 컴포넌트를 불러옵니다.
+import ChatRoom from "./components/ChatRoom";
 
 export default function App() {
   const [posts, setPosts] = useState([]);
@@ -85,12 +89,14 @@ export default function App() {
 
   const handleCategorySelect = (categoryId) => {
     setActiveCategory(categoryId);
-
-    if (activeMenu === "동행 찾기") {
-      document
-        .getElementById("recruitment-section")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    setActiveMenu("동행 찾기");
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("recruitment-section")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   };
 
   return (
@@ -113,20 +119,25 @@ export default function App() {
           </span>
         </div>
         <nav className="nav-menu">
-          {["동행 찾기", "인기 이벤트", "커뮤니티", "덕친소 가이드"].map(
-            (tab) => (
-              <button
-                key={tab}
-                className={`nav-btn ${activeMenu === tab ? "active" : ""}`}
-                onClick={() => {
-                  setActiveMenu(tab);
-                  if (tab === "동행 찾기") setIsSearchModalOpen(false);
-                }}
-              >
-                {tab}
-              </button>
-            ),
-          )}
+          {/* 🌟 2. 메뉴 탭에 "채팅 테스트"를 추가했습니다. */}
+          {[
+            "동행 찾기",
+            "인기 이벤트",
+            "커뮤니티",
+            "덕친소 가이드",
+            "채팅 테스트",
+          ].map((tab) => (
+            <button
+              key={tab}
+              className={`nav-btn ${activeMenu === tab ? "active" : ""}`}
+              onClick={() => {
+                setActiveMenu(tab);
+                if (tab === "동행 찾기") setIsSearchModalOpen(false);
+              }}
+            >
+              {tab}
+            </button>
+          ))}
         </nav>
         <div
           className="nav-right"
@@ -151,7 +162,7 @@ export default function App() {
             💬 내 톡함
           </button>
           <button className="host-btn" onClick={() => setIsHostModalOpen(true)}>
-            호스트 등록
+            <span aria-hidden="true">+</span> 동행방 모집
           </button>
           {user ? (
             <button
@@ -201,6 +212,18 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* 🌟 3. 채팅 테스트 탭을 누르면 ChatRoom 컴포넌트가 열리도록 추가했습니다. */}
+      {activeMenu === "채팅 테스트" && (
+        <div style={{ padding: "40px 0" }}>
+          <h2
+            style={{ textAlign: "center", marginBottom: "20px", color: "#333" }}
+          >
+            💬 실시간 채팅 테스트 공간
+          </h2>
+          <ChatRoom currentUser={user} />
+        </div>
+      )}
 
       {activeMenu === "동행 찾기" && (
         <HomeSection
@@ -272,11 +295,12 @@ export default function App() {
         >
           {isFabOpen && (
             <div
+              className="quick-action-menu"
               style={{
                 position: "absolute",
                 bottom: "60px",
                 background: "white",
-                borderRadius: "12px",
+                borderRadius: "8px",
                 boxShadow: "0 4px 15px rgba(0,0,0,0.15)",
                 padding: "12px",
                 display: "flex",
@@ -285,64 +309,74 @@ export default function App() {
                 width: "130px",
               }}
             >
-              {genreOptions.map((g) => (
+              {categories.map((category) => (
                 <button
-                  key={g}
+                  key={category.id}
+                  className="quick-action-category"
                   onClick={() => {
-                    handleCategorySelect(g);
+                    handleCategorySelect(category.id);
                     setIsFabOpen(false);
                   }}
                   style={{
                     border: "none",
                     background:
-                      activeCategory === g ? "#fff5f5" : "transparent",
-                    color: activeCategory === g ? "#ff4b72" : "#333",
-                    fontWeight: activeCategory === g ? "bold" : "normal",
+                      activeCategory === category.id ? "#fff5f5" : "transparent",
+                    color: activeCategory === category.id ? "#d9365b" : "#333",
+                    fontWeight: activeCategory === category.id ? "bold" : "normal",
                     padding: "10px",
                     cursor: "pointer",
-                    textAlign: "center",
+                    textAlign: "left",
                     borderRadius: "8px",
                     fontSize: "14px",
                     width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "background 160ms ease, transform 160ms ease",
                   }}
                 >
-                  {g}
+                  <span aria-hidden="true" style={{ fontSize: "18px" }}>
+                    {category.icon}
+                  </span>
+                  {category.name}
                 </button>
               ))}
             </div>
           )}
           <button
+            className="quick-action-button quick-action-category-toggle"
             onClick={() => setIsFabOpen(!isFabOpen)}
             style={{
               width: "56px",
               height: "56px",
               borderRadius: "50%",
-              background: "#333",
+              background: "#ff4b72",
               color: "white",
               border: "none",
               fontSize: "22px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+              boxShadow: "0 4px 12px rgba(255,75,114,0.35)",
               cursor: "pointer",
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
-              transition: "transform 0.2s",
+              transition: "transform 180ms ease, background 180ms ease",
             }}
           >
             {isFabOpen ? "✕" : "☰"}
           </button>
         </div>
         <button
+          className="quick-action-button quick-action-top-button"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           style={{
             width: "56px",
             height: "56px",
             borderRadius: "50%",
-            background: "#ff4b72",
+            background: "#333",
             color: "white",
             border: "none",
             fontSize: "24px",
-            boxShadow: "0 4px 12px rgba(255,75,114,0.4)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.22)",
             cursor: "pointer",
             display: "flex",
             justifyContent: "center",
@@ -383,8 +417,8 @@ export default function App() {
       <ChatListModal
         isOpen={isChatListOpen}
         onClose={() => setIsChatListOpen(false)}
+        currentUser={user}
         onSelectRoom={(room) => {
-          // 🌟 목록에서 방을 눌렀을 때 'roomId'를 정확하게 ChatModal로 꽂아줍니다!
           setSelectedPost({
             roomId: room.roomId,
             author: room.author,

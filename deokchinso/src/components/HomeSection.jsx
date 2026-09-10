@@ -1,10 +1,8 @@
-import React from "react";
 import mainBannerImg from "./mainphoto.png";
 import {
   categories,
   initialPosts, // 🌟 기존 데이터 다시 부활!
   reviews,
-  trendingEvents,
 } from "../data/mockData";
 
 export default function HomeSection({
@@ -37,42 +35,29 @@ export default function HomeSection({
   // (백엔드 데이터를 먼저 보여주기 위해 앞에 배치했습니다)
   const allPosts = [...(posts || []), ...initialPosts];
 
-  // 합쳐진 allPosts를 기준으로 필터링 진행!
+  const categoryValues = {
+    kpop: ["K-POP"],
+    ani: ["애니메이션", "ani", "애니메이션/만화"],
+    game: ["게임", "게임/e스포츠", "e스포츠"],
+    webtoon: ["만화/웹툰", "만화", "웹툰"],
+    musical: ["뮤지컬", "뮤지컬/연극", "연극"],
+    sports: ["스포츠", "스포츠 직관"],
+    idol: ["아이돌"],
+    cosplay: ["코스프레"],
+  };
+
+  // 카테고리 버튼의 ID와 모집글의 실제 분류값을 명시적으로 연결합니다.
   const filteredPosts = allPosts.filter((post) => {
     if (!selectedCategoryObj) return true;
-    const catName = selectedCategoryObj.name;
+    const postCategory = (post.category || post.genre || "").trim();
 
-    // 백엔드의 'genre' 또는 프론트의 'category' 모두 호환되도록 처리
-    const postCategory = post.category || post.genre || "";
+    if (selectedCategoryObj.id === "idol") {
+      const idolKeywords = `${post.title || ""} ${post.tag || ""}`;
+      return postCategory === "아이돌" ||
+        (postCategory === "K-POP" && idolKeywords.includes("아이돌"));
+    }
 
-    if (catName === "K-POP") {
-      return postCategory === "K-POP";
-    }
-    if (catName === "아이돌") {
-      return (
-        postCategory === "아이돌" ||
-        (postCategory === "K-POP" && post.title.includes("아이돌"))
-      );
-    }
-    if (catName === "애니메이션") {
-      return postCategory === "애니메이션" || postCategory === "ani";
-    }
-    if (catName === "만화/웹툰") {
-      return postCategory === "만화/웹툰";
-    }
-    if (catName === "게임") {
-      return postCategory === "게임";
-    }
-    if (catName === "뮤지컬") {
-      return postCategory === "뮤지컬";
-    }
-    if (catName === "코스프레") {
-      return postCategory === "코스프레";
-    }
-    if (catName === "스포츠") {
-      return postCategory === "스포츠";
-    }
-    return postCategory === catName;
+    return categoryValues[selectedCategoryObj.id]?.includes(postCategory);
   });
 
   return (

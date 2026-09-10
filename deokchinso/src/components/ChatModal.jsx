@@ -1,98 +1,260 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../supabase";
 
-const GUEST_MEMBER_KEY = "deokchinso-chat-member-id";
+function getProfileDetails(user) {
+  const metadata = user?.user_metadata || {};
+  return {
+    id: user?.id,
+    displayName:
+      metadata.nickname ||
+      metadata.name ||
+      metadata.full_name ||
+      user?.email?.split("@")[0] ||
+      "덕친",
+    avatarUrl: metadata.avatar_url || null,
+  };
+}
 
-function getGuestMemberId() {
-  const fallbackId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  try {
-    const existingId = window.localStorage.getItem(GUEST_MEMBER_KEY);
-    if (existingId) return existingId;
-
-    window.localStorage.setItem(GUEST_MEMBER_KEY, fallbackId);
-  } catch (error) {
-    console.warn("게스트 채팅 ID 저장 실패:", error);
+function ProfileAvatar({ avatarUrl, name, size = 40 }) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={`${name} 프로필`}
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover" }}
+      />
+    );
   }
 
-  return fallbackId;
+  return (
+    <div
+      aria-label={`${name} 프로필`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        display: "grid",
+        placeItems: "center",
+        flexShrink: 0,
+        background: "#ffe1e8",
+        color: "#d9365b",
+        fontSize: size * 0.4,
+        fontWeight: 700,
+      }}
+    >
+      {name.slice(0, 1)}
+    </div>
+  );
 }
 
 export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [participantCount, setParticipantCount] = useState(0);
-  const [messageError, setMessageError] = useState("");
-  const [guestMemberId] = useState(getGuestMemberId);
-  const scrollRef = useRef();
+  const [roomProfile, setRoomProfile] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const scrollRef = useRef(null);
 
-  // 1. 모든 경우의 수를 뒤져서 어떻게든 상대방 이름과 제목을 찾아냅니다.
-  const mateName =
-    targetMate?.author ||
-    targetMate?.nickname ||
-    targetMate?.userName ||
-    targetMate?.name ||
-    "알 수 없는 유저";
-  const postTitle = targetMate?.title || targetMate?.postTitle || "동행 모집방";
-  const postId = targetMate?.id || targetMate?.postId || "temp";
-  const isGroupChat = targetMate?.roomType !== "direct";
+  const postId = targetMate?.id ?? targetMate?.postId ?? "general";
   const roomId = targetMate?.roomId || `group_${postId}`;
-  const memberId = currentUser?.id || guestMemberId;
-  const memberName =
-    currentUser?.user_metadata?.nickname ||
-    currentUser?.user_metadata?.name ||
-    currentUser?.email?.split("@")[0] ||
-    `게스트 ${guestMemberId.slice(-4)}`;
-  const profileSeed = isGroupChat ? postTitle : mateName;
-  const profileImg = `https://picsum.photos/seed/${encodeURIComponent(profileSeed)}/100/100`;
+  const roomTitle = targetMate?.title || targetMate?.postTitle || "동행 모집방";
+  const currentProfile = getProfileDetails(currentUser);
 
   useEffect(() => {
     if (!isOpen) return undefined;
 
+    if (!currentUser) {
+      return undefined;
+    }
+
     let isCancelled = false;
+    let channel;
 
-    const loadChat = async () => {
-      setMessages([]);
-      setMessageError("");
+    const loadMessages = async () => {
+      const { data: messageRows, error: messagesError } = await supabase
+        .from("messages")
+        .select("id, room_id, sender_id, contents, created_at")
+        .eq("room_id", roomId)
+        .order("created_at", { ascending: true });
 
+      if (messagesError) throw messagesError;
+
+      const messageIds = messageRows.map((message) => String(message.id));
+      const senderIds = [
+        ...new Set(messageRows.map((message) => message.sender_id).filter(Boolean)),
+      ];
+      const [profilesResult, readsResult] = await Promise.all([
+        senderIds.length
+          ? supabase
+              .from("profiles")
+              .select("id, display_name, avatar_url")
+              .in("id", senderIds)
+          : Promise.resolve({ data: [], error: null }),
+        messageIds.length
+          ? supabase
+              .from("message_reads")
+              .select("message_id, user_id")
+              .in("message_id", messageIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (profilesResult.error) throw profilesResult.error;
+      if (readsResult.error) throw readsResult.error;
+
+      const profilesById = new Map(
+        profilesResult.data.map((profile) => [profile.id, profile]),
+      );
+      const readsByMessageId = new Map();
+      readsResult.data.forEach((read) => {
+        const readers = readsByMessageId.get(read.message_id) || [];
+        readers.push(read.user_id);
+        readsByMessageId.set(read.message_id, readers);
+      });
+
+      const unreadMessageIds = messageRows
+        .filter((message) => message.sender_id !== currentUser.id)
+        .map((message) => String(message.id));
+
+      if (unreadMessageIds.length) {
+        const { error: readError } = await supabase.from("message_reads").upsert(
+          unreadMessageIds.map((messageId) => ({
+            message_id: messageId,
+            user_id: currentUser.id,
+          })),
+          { onConflict: "message_id,user_id", ignoreDuplicates: true },
+        );
+        if (readError) throw readError;
+      }
+
+      if (isCancelled) return;
+
+      setMessages(
+        messageRows.map((message) => {
+          const senderProfile = profilesById.get(message.sender_id);
+          const readers = readsByMessageId.get(String(message.id)) || [];
+          return {
+            ...message,
+            senderName: senderProfile?.display_name || "알 수 없는 사용자",
+            avatarUrl: senderProfile?.avatar_url || null,
+            isMine: message.sender_id === currentUser.id,
+            isReadByOther: readers.some((readerId) => readerId !== message.sender_id),
+          };
+        }),
+      );
+    };
+
+    const openRoom = async () => {
       try {
-        if (isGroupChat) {
-          const roomResponse = await fetch("http://localhost:3000/api/chat-rooms", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              room_id: roomId,
-              post_id: postId,
-              title: postTitle,
-              member_id: memberId,
-              member_name: memberName,
-            }),
+        setErrorMessage("");
+        setMessages([]);
+
+        const { error: profileError } = await supabase.from("profiles").upsert(
+          {
+            id: currentProfile.id,
+            display_name: currentProfile.displayName,
+            avatar_url: currentProfile.avatarUrl,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        );
+        if (profileError) throw profileError;
+
+        const { data: existingRoom, error: roomLookupError } = await supabase
+          .from("chat_rooms")
+          .select("id")
+          .eq("id", roomId)
+          .maybeSingle();
+        if (roomLookupError) throw roomLookupError;
+
+        if (!existingRoom) {
+          const { error: roomCreateError } = await supabase.from("chat_rooms").insert({
+            id: roomId,
+            post_id: String(postId),
+            title: roomTitle,
+            created_by: currentUser.id,
           });
-
-          if (!roomResponse.ok) throw new Error("단체 톡방에 참여하지 못했습니다.");
-
-          const room = await roomResponse.json();
-          if (!isCancelled) setParticipantCount(room.member_count || 0);
+          if (roomCreateError && roomCreateError.code !== "23505") throw roomCreateError;
         }
 
-        const messagesResponse = await fetch(
-          `http://localhost:3000/api/messages/${encodeURIComponent(roomId)}`,
-        );
-        if (!messagesResponse.ok) throw new Error("메시지를 불러오지 못했습니다.");
+        const { error: memberError } = await supabase
+          .from("chat_room_members")
+          .upsert(
+            { room_id: roomId, user_id: currentUser.id },
+            { onConflict: "room_id,user_id", ignoreDuplicates: true },
+          );
+        if (memberError) throw memberError;
 
-        const data = await messagesResponse.json();
-        if (!isCancelled) setMessages(data);
+        const { data: members, error: membersError } = await supabase
+          .from("chat_room_members")
+          .select("user_id")
+          .eq("room_id", roomId);
+        if (membersError) throw membersError;
+
+        const memberIds = members.map((member) => member.user_id);
+        const { data: memberProfiles, error: memberProfilesError } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", memberIds);
+        if (memberProfilesError) throw memberProfilesError;
+
+        if (isCancelled) return;
+
+        setParticipantCount(members.length);
+        setRoomProfile(
+          memberProfiles.find((profile) => profile.id !== currentUser.id) ||
+            memberProfiles.find((profile) => profile.id === currentUser.id) ||
+            null,
+        );
+        await loadMessages();
+
+        channel = supabase
+          .channel(`chat-room:${roomId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "messages",
+              filter: `room_id=eq.${roomId}`,
+            },
+            () =>
+              loadMessages().catch((error) =>
+                console.error("메시지 동기화 실패:", error),
+              ),
+          )
+          .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "message_reads" },
+            () =>
+              loadMessages().catch((error) =>
+                console.error("읽음 상태 동기화 실패:", error),
+              ),
+          )
+          .subscribe();
       } catch (error) {
-        if (!isCancelled) setMessageError(error.message);
-        console.error("메시지 불러오기 실패:", error);
+        if (!isCancelled) {
+          setErrorMessage(error.message || "채팅방을 불러오지 못했습니다.");
+        }
+        console.error("채팅방 불러오기 실패:", error);
       }
     };
 
-    loadChat();
+    openRoom();
 
     return () => {
       isCancelled = true;
+      if (channel) supabase.removeChannel(channel);
     };
-  }, [isOpen, isGroupChat, memberId, memberName, postId, postTitle, roomId]);
+  }, [
+    currentProfile.avatarUrl,
+    currentProfile.displayName,
+    currentProfile.id,
+    currentUser,
+    isOpen,
+    postId,
+    roomId,
+    roomTitle,
+  ]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -100,76 +262,49 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
     }
   }, [messages]);
 
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    const refreshMessages = async () => {
-      try {
-        const response = await fetch(
-          `http://localhost:3000/api/messages/${encodeURIComponent(roomId)}`,
-        );
-        if (!response.ok) return;
-
-        const latestMessages = await response.json();
-        setMessages((previousMessages) => {
-          const isUnchanged =
-            previousMessages.length === latestMessages.length &&
-            previousMessages.every(
-              (message, index) => message.id === latestMessages[index].id,
-            );
-
-          return isUnchanged ? previousMessages : latestMessages;
-        });
-      } catch (error) {
-        console.error("메시지 동기화 실패:", error);
-      }
-    };
-
-    const pollingId = window.setInterval(refreshMessages, 3000);
-    return () => window.clearInterval(pollingId);
-  }, [isOpen, roomId]);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    const messageData = {
-      room_id: roomId,
-      sender: memberName,
-      text: newMessage,
-    };
+  const handleSendMessage = async (event) => {
+    event.preventDefault();
+    const contents = newMessage.trim();
+    if (!contents || !currentUser) return;
 
     try {
-      setMessageError("");
-      const response = await fetch("http://localhost:3000/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(messageData),
+      setErrorMessage("");
+      const { error } = await supabase.from("messages").insert({
+        room_id: roomId,
+        sender_id: currentUser.id,
+        contents,
       });
+      if (error) throw error;
 
-      if (!response.ok) throw new Error("메시지를 전송하지 못했습니다.");
-
-      const savedMessage = await response.json();
-      setMessages((prev) => [...prev, savedMessage]);
       setNewMessage("");
     } catch (error) {
-      setMessageError(error.message);
-      console.error("메시지 전송 에러:", error);
+      setErrorMessage(error.message || "메시지를 전송하지 못했습니다.");
+      console.error("메시지 전송 실패:", error);
     }
   };
 
   if (!isOpen) return null;
 
+  const displayedMessages = currentUser ? messages : [];
+  const displayedError = currentUser
+    ? errorMessage
+    : "채팅은 로그인 후 이용할 수 있습니다.";
+
+  const headerProfile = roomProfile || {
+    display_name: targetMate?.author || "동행 메이트",
+    avatar_url: targetMate?.avatarUrl || null,
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10000 }}>
       <div
         className="modal-content"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         style={{
           width: "400px",
           height: "650px",
           background: "#f8f9fa",
-          borderRadius: "20px",
+          borderRadius: "12px",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
@@ -184,67 +319,51 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
             borderBottom: "1px solid #eee",
           }}
         >
-          <img
-            src={profileImg}
-            alt="프사"
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              marginRight: "12px",
-              objectFit: "cover",
-            }}
+          <ProfileAvatar
+            avatarUrl={headerProfile.avatar_url}
+            name={headerProfile.display_name}
           />
-          <div style={{ flex: 1 }}>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: "16px",
-                fontWeight: "bold",
-                color: "#222",
-              }}
-            >
-              {isGroupChat ? `${postTitle} 단체 톡` : `${mateName} 님과의 톡`}
+          <div style={{ flex: 1, minWidth: 0, marginLeft: "12px" }}>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#222" }}>
+              {roomTitle}
             </h3>
             <span
               style={{
-                fontSize: "12px",
                 color: "#888",
                 display: "block",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                maxWidth: "250px",
+                fontSize: "12px",
+                marginTop: "3px",
               }}
             >
-              {isGroupChat ? `${participantCount}명 참여 중` : postTitle}
+              {participantCount}명 참여 중
             </span>
           </div>
           <button
+            type="button"
+            aria-label="채팅방 닫기"
             onClick={onClose}
             style={{
               background: "none",
               border: "none",
-              fontSize: "20px",
-              color: "#999",
+              color: "#777",
               cursor: "pointer",
+              fontSize: "20px",
             }}
           >
-            ✕
+            x
           </button>
         </div>
 
         <div
           style={{
             background: "#fff5f5",
-            color: "#ff4b72",
-            padding: "10px 16px",
-            fontSize: "12px",
             borderBottom: "1px solid #ffe5e5",
+            color: "#d9365b",
+            fontSize: "12px",
+            padding: "10px 16px",
           }}
         >
-          ⚠️ <b>안전 주의:</b> 연락처(전화번호/카카오톡 ID) 요구 및 금전 요구 시
-          즉시 신고해 주세요.
+          연락처나 금전을 요구하면 대화를 중단하고 신고해 주세요.
         </div>
 
         <div
@@ -258,137 +377,131 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
             gap: "16px",
           }}
         >
-          {messages.map((msg, index) => {
-            const isMe = msg.sender === memberName || msg.sender === "나";
-            return (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  flexDirection: isMe ? "row-reverse" : "row",
-                  alignItems: "flex-end",
-                }}
-              >
-                {!isMe && (
-                  <img
-                    src={profileImg}
-                    alt="상대"
+          {displayedMessages.map((message) => (
+            <div
+              key={message.id}
+              style={{
+                alignItems: "flex-end",
+                display: "flex",
+                flexDirection: message.isMine ? "row-reverse" : "row",
+                gap: "8px",
+              }}
+            >
+              {!message.isMine && (
+                <ProfileAvatar
+                  avatarUrl={message.avatarUrl}
+                  name={message.senderName}
+                  size={36}
+                />
+              )}
+              <div style={{ maxWidth: "75%" }}>
+                {!message.isMine && (
+                  <span
                     style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "50%",
-                      marginRight: "8px",
-                      marginBottom: "2px",
-                      objectFit: "cover",
+                      color: "#777",
+                      display: "block",
+                      fontSize: "11px",
+                      marginBottom: "4px",
                     }}
-                  />
+                  >
+                    {message.senderName}
+                  </span>
                 )}
                 <div
                   style={{
-                    maxWidth: "75%",
+                    alignItems: "flex-end",
+                    display: "flex",
+                    flexDirection: message.isMine ? "row-reverse" : "row",
                   }}
                 >
-                  {isGroupChat && !isMe && (
-                    <span
-                      style={{
-                        display: "block",
-                        marginBottom: "4px",
-                        color: "#777",
-                        fontSize: "11px",
-                      }}
-                    >
-                      {msg.sender}
-                    </span>
-                  )}
                   <div
                     style={{
-                      display: "flex",
-                      flexDirection: isMe ? "row-reverse" : "row",
-                      alignItems: "flex-end",
-                    }}
-                  >
-                  <div
-                    style={{
-                      background: isMe ? "#ff4b72" : "white",
-                      color: isMe ? "white" : "#333",
-                      padding: "10px 14px",
-                      borderRadius: isMe
-                        ? "16px 16px 4px 16px"
-                        : "16px 16px 16px 4px",
+                      background: message.isMine ? "#ff4b72" : "white",
+                      borderRadius: message.isMine
+                        ? "14px 14px 3px 14px"
+                        : "14px 14px 14px 3px",
+                      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+                      color: message.isMine ? "white" : "#333",
                       fontSize: "14px",
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-                      lineHeight: "1.4",
+                      lineHeight: 1.4,
+                      padding: "10px 14px",
                     }}
                   >
-                    {msg.text}
+                    {message.contents}
                   </div>
-                  <span
+                  <div
                     style={{
-                      fontSize: "10px",
+                      alignItems: message.isMine ? "flex-end" : "flex-start",
                       color: "#999",
-                      margin: isMe ? "0 6px 0 0" : "0 0 0 6px",
-                      minWidth: "45px",
+                      display: "flex",
+                      flexDirection: "column",
+                      fontSize: "10px",
+                      margin: message.isMine ? "0 6px 0 0" : "0 0 0 6px",
+                      minWidth: "42px",
                     }}
                   >
-                    {msg.timestamp
-                      ? new Date(msg.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "방금 전"}
-                  </span>
+                    {message.isMine && message.isReadByOther && (
+                      <span
+                        aria-label="상대가 읽음"
+                        title="상대가 읽음"
+                        style={{ color: "#d9365b", fontSize: "12px" }}
+                      >
+                        ✓
+                      </span>
+                    )}
+                    <span>
+                      {message.created_at
+                        ? new Date(message.created_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "방금"}
+                    </span>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
 
-        <div
-          style={{
-            background: "white",
-            padding: "12px 16px",
-            borderTop: "1px solid #eee",
-          }}
-        >
-          <form
-            onSubmit={handleSendMessage}
-            style={{ display: "flex", gap: "8px" }}
-          >
+        <div style={{ background: "white", borderTop: "1px solid #eee", padding: "12px 16px" }}>
+          <form onSubmit={handleSendMessage} style={{ display: "flex", gap: "8px" }}>
             <input
               type="text"
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="메시지를 입력하세요..."
+              disabled={!currentUser}
+              onChange={(event) => setNewMessage(event.target.value)}
+              placeholder={currentUser ? "메시지를 입력하세요..." : "로그인 후 채팅할 수 있습니다."}
               style={{
-                flex: 1,
-                padding: "12px 16px",
-                borderRadius: "20px",
-                border: "1px solid #ddd",
-                outline: "none",
-                fontSize: "14px",
                 background: "#f8f9fa",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                flex: 1,
+                fontSize: "14px",
+                outline: "none",
+                padding: "12px 14px",
               }}
             />
             <button
               type="submit"
+              disabled={!currentUser}
               style={{
-                background: "#ff4b72",
-                color: "white",
+                background: currentUser ? "#ff4b72" : "#bbb",
                 border: "none",
-                padding: "0 20px",
-                borderRadius: "20px",
-                fontWeight: "bold",
-                cursor: "pointer",
+                borderRadius: "8px",
+                color: "white",
+                cursor: currentUser ? "pointer" : "not-allowed",
                 fontSize: "14px",
+                fontWeight: 700,
+                padding: "0 18px",
               }}
             >
               전송
             </button>
           </form>
-          {messageError && (
-            <p style={{ color: "#d9365b", fontSize: "12px", margin: "8px 4px 0" }}>
-              {messageError}
+          {displayedError && (
+            <p style={{ color: "#d9365b", fontSize: "12px", margin: "8px 2px 0" }}>
+              {displayedError}
             </p>
           )}
         </div>
