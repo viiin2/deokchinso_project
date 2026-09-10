@@ -388,6 +388,7 @@ export default function ChatModal({
           {displayedMessages.map((message) => (
             <div
               key={message.id}
+              className={`chat-message-row ${message.isMine ? "is-mine" : "is-other"}`}
               style={{
                 alignItems: "flex-end",
                 display: "flex",

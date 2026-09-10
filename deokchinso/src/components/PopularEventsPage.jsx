@@ -91,6 +91,13 @@ export default function PopularEventsPage({ onOpenHostModal }) {
             <div className="popular-image-wrapper">
               <img src={event.image} alt={event.title} />
               <div className="popular-rank">{event.rank}</div>
+              <button
+                type="button"
+                className="popular-image-cta"
+                onClick={() => onOpenHostModal(event)}
+              >
+                동행 구하기 →
+              </button>
             </div>
 
             <div className="popular-info">

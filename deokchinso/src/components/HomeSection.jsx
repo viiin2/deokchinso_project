@@ -91,6 +91,13 @@ export default function HomeSection({
 
       {/* 메인 배너 및 검색창 */}
       <section className="hero-section">
+        <div className="hero-motion-layer" aria-hidden="true">
+          <span className="hero-sparkle hero-sparkle-one">✦</span>
+          <span className="hero-sparkle hero-sparkle-two">✧</span>
+          <span className="hero-sparkle hero-sparkle-three">♥</span>
+          <span className="hero-light-orb hero-light-orb-one" />
+          <span className="hero-light-orb hero-light-orb-two" />
+        </div>
         <div className="hero-content">
           <div className="badge-group">
             <span className="badge">누적 매칭 5만 건 돌파</span>
@@ -239,6 +246,9 @@ export default function HomeSection({
                     </div>
                     <button
                       type="button"
+                      className={`heart-button ${
+                        bookmarkedPostIds?.includes(post.roomId) ? "is-bookmarked" : ""
+                      }`}
                       aria-label={
                         bookmarkedPostIds?.includes(post.roomId)
                           ? "찜한 모집글 해제"

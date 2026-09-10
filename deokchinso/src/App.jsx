@@ -369,8 +369,8 @@ export default function App() {
           }}
           style={{ cursor: "pointer" }}
         >
-          <span className="logo-icon">덕</span>
-          <h1 className="logo-text">덕친소</h1>
+          <span className="logo-icon logo-intro-icon">덕</span>
+          <h1 className="logo-text logo-intro-text">덕친소</h1>
           <span className="logo-desc hidden-mobile">
             덕질 친구를 소개합니다
           </span>
@@ -417,6 +417,7 @@ export default function App() {
             💬 내 톡함
             {unreadChatCount > 0 && (
               <span
+                className="unread-count-badge nav-unread-count-badge"
                 aria-label={`읽지 않은 메시지 ${unreadChatCount}개`}
                 style={{
                   alignItems: "center",
@@ -589,7 +590,7 @@ export default function App() {
               {categories.map((category) => (
                 <button
                   key={category.id}
-                  className="quick-action-category"
+                  className="quick-action-category quick-action-menu-item"
                   onClick={() => {
                     handleCategorySelect(category.id);
                     setIsFabOpen(false);
@@ -621,6 +622,7 @@ export default function App() {
               <div style={{ borderTop: "1px solid #eee", margin: "2px 0" }} />
               <button
                 type="button"
+                className="quick-action-menu-item"
                 onClick={() => {
                   setIsGuideOpen(true);
                   setIsFabOpen(false);
@@ -642,7 +644,9 @@ export default function App() {
             </div>
           )}
           <button
-            className="quick-action-button quick-action-category-toggle"
+            className={`quick-action-button quick-action-category-toggle ${
+              isFabOpen ? "is-open" : ""
+            }`}
             onClick={() => setIsFabOpen(!isFabOpen)}
             style={{
               width: "56px",

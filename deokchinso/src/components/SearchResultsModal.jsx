@@ -111,6 +111,9 @@ export default function SearchResultsModal({
                     </div>
                     <button
                       type="button"
+                      className={`heart-button ${
+                        bookmarkedPostIds?.includes(post.roomId) ? "is-bookmarked" : ""
+                      }`}
                       aria-label={
                         bookmarkedPostIds?.includes(post.roomId)
                           ? "찜한 모집글 해제"

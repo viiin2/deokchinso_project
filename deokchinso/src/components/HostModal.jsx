@@ -100,8 +100,11 @@ export default function HostModal({
         </div>
 
         {isSuccess ? (
-          <div style={{ textAlign: "center", padding: "40px 20px" }}>
-            <div style={{ fontSize: "48px", marginBottom: "12px" }}>🎉</div>
+          <div className="host-success-panel" style={{ textAlign: "center", padding: "40px 20px" }}>
+            <div className="room-celebration" aria-hidden="true">
+              <span>✦</span><span>♥</span><span>✧</span><span>★</span><span>♥</span><span>✦</span>
+            </div>
+            <div className="host-success-emoji" style={{ fontSize: "48px", marginBottom: "12px" }}>🎉</div>
             <h3 style={{ color: "#f43f5e", marginBottom: "8px" }}>
               [방 개설 완료!]
             </h3>

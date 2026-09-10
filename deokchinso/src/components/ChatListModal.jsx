@@ -302,6 +302,7 @@ export default function ChatListModal({
                   </div>
                   {room.unreadCount > 0 && (
                     <span
+                      className="unread-count-badge"
                       aria-label={`읽지 않은 메시지 ${room.unreadCount}개`}
                       style={{
                         alignItems: "center",

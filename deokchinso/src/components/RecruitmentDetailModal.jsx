@@ -121,6 +121,7 @@ export default function RecruitmentDetailModal({
           </div>
           <button
             type="button"
+            className={`heart-button ${isBookmarked ? "is-bookmarked" : ""}`}
             aria-label={isBookmarked ? "찜한 모집글 해제" : "모집글 찜하기"}
             aria-pressed={isBookmarked}
             onClick={() => onToggleBookmark(post)}
