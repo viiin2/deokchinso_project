@@ -5,8 +5,8 @@ import {
   genreOptions,
   dateOptions,
   categories,
-  MY_PROFILE_IMG,
 } from "./data/mockData";
+import defaultProfileAvatar from "./assets/default-profile.svg";
 import HomeSection from "./components/HomeSection";
 import HostModal from "./components/HostModal";
 import SearchResultsModal from "./components/SearchResultsModal";
@@ -59,6 +59,7 @@ export default function App() {
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [hostInitialEvent, setHostInitialEvent] = useState(null);
+  const [communityFocusTarget, setCommunityFocusTarget] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -480,7 +481,7 @@ export default function App() {
             onClick={() => (user ? setIsMyPageOpen(true) : setIsLoginModalOpen(true))}
           >
             <img
-              src={user ? navigationProfile.avatarUrl : MY_PROFILE_IMG}
+              src={user ? navigationProfile.avatarUrl : defaultProfileAvatar}
               alt="내 프로필"
               style={{
                 width: "40px",
@@ -522,7 +523,14 @@ export default function App() {
       {activeMenu === "인기 이벤트" && (
         <PopularEventsPage onOpenHostModal={handleOpenHostModal} />
       )}
-      {activeMenu === "커뮤니티" && <CommunityBoard />}
+      {activeMenu === "커뮤니티" && (
+        <CommunityBoard
+          currentUser={user}
+          currentUserProfile={currentUserProfile}
+          focusTarget={communityFocusTarget}
+          onRequireLogin={() => setIsLoginModalOpen(true)}
+        />
+      )}
 
       <footer className="footer-dark">
         <div className="footer-top">
@@ -732,6 +740,12 @@ export default function App() {
           handleOpenPostDetail(post);
         }}
         onStartChat={handleStartChat}
+        onOpenCommunityActivity={(target) => {
+          setCommunityFocusTarget({ ...target, requestedAt: Date.now() });
+          setIsMyPageOpen(false);
+          setActiveMenu("커뮤니티");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
       />
       <ChatListModal
         isOpen={isChatListOpen}

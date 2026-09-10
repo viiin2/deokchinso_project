@@ -584,13 +584,29 @@ app.post("/api/community/:id/view", (req, res) => {
 // 6. 커뮤니티 댓글 달기
 app.post("/api/community/:id/comment", (req, res) => {
   const id = req.params.id;
-  const newCommentText = req.body.text;
+  const {
+    text: newCommentText,
+    author,
+    author_avatar_url: authorAvatarUrl,
+    author_user_id: authorUserId,
+  } = req.body;
+
+  if (!newCommentText?.trim()) {
+    return res.status(400).json({ error: "댓글 내용을 입력해주세요." });
+  }
 
   db.get("SELECT * FROM community WHERE id = ?", [id], (err, row) => {
     if (err || !row) return res.status(404).send("Not found");
 
     let comments = JSON.parse(row.comments || "[]");
-    comments.push(newCommentText);
+    comments.push({
+      id: `legacy-comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: newCommentText.trim(),
+      author: author || "덕친소 회원",
+      author_avatar_url: authorAvatarUrl || "",
+      author_user_id: authorUserId || "",
+      created_at: new Date().toISOString(),
+    });
 
     db.run(
       "UPDATE community SET comments = ? WHERE id = ?",

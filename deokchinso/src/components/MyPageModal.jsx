@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDefaultAvatarUrl, getUserProfile } from "../profileUtils";
 import { supabase } from "../supabase";
 
@@ -13,6 +13,7 @@ export default function MyPageModal({
   hostedPosts,
   onOpenPost,
   onStartChat,
+  onOpenCommunityActivity,
 }) {
   if (!isOpen) return null;
 
@@ -44,6 +45,7 @@ export default function MyPageModal({
       hostedPosts={hostedPosts || []}
       onOpenPost={onOpenPost}
       onStartChat={onStartChat}
+      onOpenCommunityActivity={onOpenCommunityActivity}
     />
   );
 }
@@ -58,14 +60,105 @@ function MyPageContent({
   hostedPosts,
   onOpenPost,
   onStartChat,
+  onOpenCommunityActivity,
 }) {
   const [activeTab, setActiveTab] = useState("applied");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [communityActivity, setCommunityActivity] = useState({
+    comments: [],
+    error: "",
+    isLoading: true,
+    posts: [],
+  });
   const currentItems = {
     applied: appliedPosts,
+    communityComments: communityActivity.comments,
+    communityPosts: communityActivity.posts,
     hosted: hostedPosts,
     liked: bookmarks,
   };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadCommunityActivity = async () => {
+      try {
+        const [postsResult, commentsResult, legacyPosts] = await Promise.all([
+          supabase
+            .from("community_posts")
+            .select("id, category, title, created_at")
+            .eq("author_id", currentUser.id)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("community_comments")
+            .select("id, content, created_at, community_posts (id, category, title)")
+            .eq("author_id", currentUser.id)
+            .order("created_at", { ascending: false }),
+          fetch("http://localhost:3000/api/community")
+            .then(async (response) => (response.ok ? response.json() : []))
+            .catch(() => []),
+        ]);
+        if (postsResult.error) throw postsResult.error;
+        if (commentsResult.error) throw commentsResult.error;
+        if (isCancelled) return;
+
+        const supabaseComments = (commentsResult.data || []).map((comment) => {
+            const parentPost = Array.isArray(comment.community_posts)
+              ? comment.community_posts[0]
+              : comment.community_posts;
+            return {
+              ...comment,
+              postCategory: parentPost?.category || "커뮤니티",
+              postId: parentPost?.id,
+              postTitle: parentPost?.title || "삭제된 게시글",
+              source: "supabase",
+            };
+          });
+        const legacyComments = legacyPosts.flatMap((post) =>
+          (post.comments || [])
+            .filter(
+              (comment) =>
+                typeof comment === "object" && comment.author_user_id === currentUser.id,
+            )
+            .map((comment, index) => ({
+              content: comment.text || comment.content || "",
+              created_at: comment.created_at,
+              id: comment.id || `legacy-${post.id}-comment-${index}`,
+              postCategory: post.category || "커뮤니티",
+              postId: `legacy-${post.id}`,
+              postTitle: post.title || "삭제된 게시글",
+              source: "legacy",
+            })),
+        );
+
+        setCommunityActivity({
+          comments: [...supabaseComments, ...legacyComments].sort(
+            (first, second) =>
+              new Date(second.created_at || 0).getTime() -
+              new Date(first.created_at || 0).getTime(),
+          ),
+          error: "",
+          isLoading: false,
+          posts: postsResult.data || [],
+        });
+      } catch (error) {
+        console.error("내 커뮤니티 활동 불러오기 실패:", error);
+        if (!isCancelled) {
+          setCommunityActivity({
+            comments: [],
+            error: "커뮤니티 활동을 불러오지 못했습니다. Supabase 커뮤니티 SQL을 실행해 주세요.",
+            isLoading: false,
+            posts: [],
+          });
+        }
+      }
+    };
+
+    loadCommunityActivity();
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser.id]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -157,6 +250,18 @@ function MyPageContent({
           >
             찜한 이벤트 ({currentItems.liked.length})
           </button>
+          <button
+            className={`mypage-tab-btn ${activeTab === "communityPosts" ? "active" : ""}`}
+            onClick={() => setActiveTab("communityPosts")}
+          >
+            내 커뮤니티 글 ({currentItems.communityPosts.length})
+          </button>
+          <button
+            className={`mypage-tab-btn ${activeTab === "communityComments" ? "active" : ""}`}
+            onClick={() => setActiveTab("communityComments")}
+          >
+            내 댓글 ({currentItems.communityComments.length})
+          </button>
         </div>
 
         <div className="mypage-list-area">
@@ -205,6 +310,28 @@ function MyPageContent({
             ) : (
               <p className="empty-text">찜한 이벤트가 없습니다.</p>
             ))}
+
+          {activeTab === "communityPosts" && (
+            <CommunityActivityList
+              emptyMessage="작성한 커뮤니티 글이 없습니다."
+              error={communityActivity.error}
+              isLoading={communityActivity.isLoading}
+              items={communityActivity.posts}
+              onOpen={onOpenCommunityActivity}
+              type="post"
+            />
+          )}
+
+          {activeTab === "communityComments" && (
+            <CommunityActivityList
+              emptyMessage="작성한 댓글이 없습니다."
+              error={communityActivity.error}
+              isLoading={communityActivity.isLoading}
+              items={communityActivity.comments}
+              onOpen={onOpenCommunityActivity}
+              type="comment"
+            />
+          )}
         </div>
 
         {isEditingProfile && (
@@ -218,6 +345,56 @@ function MyPageContent({
       </div>
     </div>
   );
+}
+
+function formatCommunityActivityTime(timestamp) {
+  const date = new Date(timestamp);
+  if (!timestamp || Number.isNaN(date.getTime())) return "방금 전";
+
+  return date.toLocaleDateString("ko-KR", {
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function CommunityActivityList({ emptyMessage, error, isLoading, items, onOpen, type }) {
+  if (isLoading) return <p className="empty-text">커뮤니티 활동을 불러오는 중입니다.</p>;
+  if (error) return <p className="empty-text" style={{ color: "#d9365b" }}>{error}</p>;
+  if (!items.length) return <p className="empty-text">{emptyMessage}</p>;
+
+  return items.map((item) => {
+    const target =
+      type === "post"
+        ? { postId: item.id, source: "supabase" }
+        : { commentId: item.id, postId: item.postId, source: item.source };
+    const openActivity = () => {
+      if (target.postId) onOpen?.(target);
+    };
+
+    return (
+      <div
+        aria-label={type === "post" ? `${item.title} 글로 이동` : `${item.postTitle} 댓글로 이동`}
+        className="mypage-card"
+        key={item.id}
+        onClick={openActivity}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") openActivity();
+        }}
+        role="button"
+        style={{ cursor: target.postId ? "pointer" : "default" }}
+        tabIndex={target.postId ? 0 : -1}
+      >
+        <div className="mypage-card-info">
+          <span className="mypage-status-badge">{type === "post" ? item.category : item.postCategory}</span>
+          <h5>{type === "post" ? item.title : item.postTitle}</h5>
+          <p>
+            {type === "post" ? "작성한 글" : `댓글: ${item.content}`} · {formatCommunityActivityTime(item.created_at)}
+          </p>
+        </div>
+        <span style={{ color: "#d9365b", fontSize: "12px", fontWeight: 800 }}>보러가기 ›</span>
+      </div>
+    );
+  });
 }
 
 function ActivityCard({ item, badge, isHost, actionLabel, onAction }) {

@@ -1,6 +1,3 @@
-export const MY_PROFILE_IMG =
-  "https://i.namu.wiki/i/C96RCaFzs6DEKqwZSPEW2_QLFVSiSx_In06L2ArKp13mMrMsBu4BJqP9RrQHk3phE6AKGqT14JEjtP-rLmixZg.webp";
-
 export const initialPosts = [
   // --- K-POP (7개) ---
   {

@@ -1,9 +1,95 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../supabase";
+import { getUserProfile } from "../profileUtils";
 
-export default function CommunityBoard() {
+const COMMUNITY_POST_SELECT = `
+  id, category, title, content, author_id, author_name, author_avatar_url, views, created_at,
+  community_comments (id, content, author_id, author_name, author_avatar_url, created_at)
+`;
+
+const LEGACY_COMMENT_AUTHORS = [
+  "밤샘덕후",
+  "최애는고양이",
+  "핑크응원봉",
+  "티켓팅장인",
+  "만화방단골",
+  "콘서트원정대",
+  "라면먹는오타쿠",
+  "굿즈수집가",
+  "덕질은행복",
+  "퇴근후정주행",
+];
+
+function formatRelativeTime(timestamp) {
+  const date = new Date(timestamp);
+  if (!timestamp || Number.isNaN(date.getTime())) return "방금 전";
+
+  const elapsedMinutes = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (elapsedMinutes < 1) return "방금 전";
+  if (elapsedMinutes < 60) return `${elapsedMinutes}분 전`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}시간 전`;
+  return `${Math.floor(elapsedHours / 24)}일 전`;
+}
+
+function toCommunityComment(comment) {
+  return {
+    id: comment.id,
+    author: comment.author_name || "덕친소 회원",
+    authorId: comment.author_id,
+    avatarUrl: comment.author_avatar_url,
+    createdAt: comment.created_at,
+    text: comment.content,
+  };
+}
+
+function toCommunityPost(post) {
+  return {
+    ...post,
+    author: post.author_name || "덕친소 회원",
+    authorId: post.author_id,
+    avatarUrl: post.author_avatar_url,
+    comments: (post.community_comments || [])
+      .map(toCommunityComment)
+      .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt)),
+    time: formatRelativeTime(post.created_at),
+  };
+}
+
+function getLegacyCommentAuthor(postId, commentIndex) {
+  const seed = Number(postId) || 0;
+  return LEGACY_COMMENT_AUTHORS[(seed * 7 + commentIndex * 3) % LEGACY_COMMENT_AUTHORS.length];
+}
+
+function toLegacyCommunityPost(post) {
+  return {
+    ...post,
+    id: `legacy-${post.id}`,
+    legacyId: post.id,
+    source: "legacy",
+    author: post.author || "덕친소 운영팀",
+    comments: (post.comments || []).map((comment, index) => ({
+      author:
+        typeof comment === "object" && comment.author
+          ? comment.author
+          : getLegacyCommentAuthor(post.id, index),
+      id: `legacy-${post.id}-comment-${index}`,
+      text: typeof comment === "object" ? comment.text || comment.content || "" : comment,
+    })),
+    time: post.time || "이전 작성글",
+  };
+}
+
+export default function CommunityBoard({
+  currentUser,
+  currentUserProfile,
+  focusTarget,
+  onRequireLogin,
+}) {
   const [posts, setPosts] = useState([]);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   const GENRES = [
     "K-POP",
@@ -19,14 +105,38 @@ export default function CommunityBoard() {
   const [isWriting, setIsWriting] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [newComment, setNewComment] = useState("");
+  const commentRefs = useRef(new Map());
 
   const fetchCommunityPosts = async () => {
-    try {
-      const response = await fetch("http://localhost:3000/api/community");
-      const data = await response.json();
-      setPosts(data);
-    } catch (error) {
-      console.error("데이터 로딩 실패:", error);
+    const [supabaseResult, legacyResult] = await Promise.allSettled([
+      supabase
+        .from("community_posts")
+        .select(COMMUNITY_POST_SELECT)
+        .order("created_at", { ascending: false }),
+      fetch("http://localhost:3000/api/community").then(async (response) => {
+        if (!response.ok) throw new Error("기존 커뮤니티 데이터를 불러오지 못했습니다.");
+        return response.json();
+      }),
+    ]);
+
+    const remotePosts =
+      supabaseResult.status === "fulfilled" && !supabaseResult.value.error
+        ? (supabaseResult.value.data || []).map(toCommunityPost)
+        : [];
+    const legacyPosts =
+      legacyResult.status === "fulfilled"
+        ? (legacyResult.value || []).map(toLegacyCommunityPost)
+        : [];
+
+    setPosts([...remotePosts, ...legacyPosts]);
+    if (supabaseResult.status === "rejected" || supabaseResult.value?.error) {
+      console.error("Supabase 커뮤니티 불러오기 실패:", supabaseResult);
+      setLoadError("새 커뮤니티 기능을 사용하려면 Supabase 커뮤니티 SQL을 실행해 주세요.");
+    } else if (legacyResult.status === "rejected") {
+      console.error("기존 더미 커뮤니티 불러오기 실패:", legacyResult.reason);
+      setLoadError("기존 커뮤니티 더미 데이터를 불러오지 못했습니다.");
+    } else {
+      setLoadError("");
     }
   };
 
@@ -38,75 +148,132 @@ export default function CommunityBoard() {
     return () => window.clearTimeout(loadPostsTimer);
   }, []);
 
+  useEffect(() => {
+    if (!focusTarget?.postId || !posts.length) return;
+
+    const targetPost = posts.find(
+      (post) => String(post.id) === String(focusTarget.postId),
+    );
+    if (!targetPost) return undefined;
+
+    const openTargetTimer = window.setTimeout(() => setSelectedPost(targetPost), 0);
+    return () => window.clearTimeout(openTargetTimer);
+  }, [focusTarget, posts]);
+
+  useEffect(() => {
+    if (!focusTarget?.commentId || !selectedPost) return undefined;
+
+    const scrollTimer = window.setTimeout(() => {
+      commentRefs.current
+        .get(String(focusTarget.commentId))
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(scrollTimer);
+  }, [focusTarget, selectedPost]);
+
   const filteredPosts = posts.filter((post) => post.category === activeTab);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      onRequireLogin?.();
+      return;
+    }
     if (!newTitle.trim()) return alert("제목을 입력해주세요!");
 
     try {
-      const response = await fetch("http://localhost:3000/api/community", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTitle,
-          content: newContent,
-          category: activeTab,
-          author: "덕후유저",
-        }),
+      const { error } = await supabase.from("community_posts").insert({
+        title: newTitle.trim(),
+        content: newContent.trim(),
+        category: activeTab,
       });
+      if (error) throw error;
 
-      if (response.ok) {
-        setNewTitle("");
-        setNewContent("");
-        setIsWriting(false);
-        fetchCommunityPosts();
-      }
-    } catch {
+      setNewTitle("");
+      setNewContent("");
+      setIsWriting(false);
+      fetchCommunityPosts();
+    } catch (error) {
+      console.error("커뮤니티 글 작성 실패:", error);
       alert("글 작성 실패");
     }
   };
 
   const handlePostClick = async (post) => {
     setSelectedPost(post);
+    if (post.source === "legacy") return;
 
-    try {
-      const response = await fetch(
-        `http://localhost:3000/api/community/${post.id}/view`,
-        { method: "POST" },
+    const { error } = await supabase.rpc("increment_community_post_view", {
+      target_post_id: post.id,
+    });
+    if (!error) {
+      const updatedPost = { ...post, views: (post.views || 0) + 1 };
+      setSelectedPost(updatedPost);
+      setPosts((currentPosts) =>
+        currentPosts.map((currentPost) =>
+          currentPost.id === post.id ? updatedPost : currentPost,
+        ),
       );
-      if (response.ok) {
-        const updatedPost = await response.json();
-        setSelectedPost(updatedPost);
-        fetchCommunityPosts();
-      }
-    } catch (e) {
-      console.error(e);
+    } else {
+      console.error("조회수 업데이트 실패:", error);
     }
   };
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      onRequireLogin?.();
+      return;
+    }
     if (!newComment.trim()) return;
 
     try {
-      const response = await fetch(
-        `http://localhost:3000/api/community/${selectedPost.id}/comment`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: newComment }),
-        },
-      );
+      if (selectedPost.source === "legacy") {
+        const profile = getUserProfile(currentUser, currentUserProfile);
+        const response = await fetch(
+          `http://localhost:3000/api/community/${selectedPost.legacyId}/comment`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              author: profile.displayName,
+              author_avatar_url: profile.avatarUrl,
+              author_user_id: currentUser.id,
+              text: newComment.trim(),
+            }),
+          },
+        );
+        if (!response.ok) throw new Error("기존 커뮤니티 댓글 작성에 실패했습니다.");
 
-      if (response.ok) {
-        const updatedPost = await response.json();
+        const updatedPost = toLegacyCommunityPost(await response.json());
         setSelectedPost(updatedPost);
+        setPosts((currentPosts) =>
+          currentPosts.map((post) => (post.id === updatedPost.id ? updatedPost : post)),
+        );
         setNewComment("");
-        fetchCommunityPosts();
+        return;
       }
-    } catch (e) {
-      console.error(e);
+
+      const { data, error } = await supabase
+        .from("community_comments")
+        .insert({ post_id: selectedPost.id, content: newComment.trim() })
+        .select("id, content, author_id, author_name, author_avatar_url, created_at")
+        .single();
+      if (error) throw error;
+
+      const comment = toCommunityComment(data);
+      const updatedPost = {
+        ...selectedPost,
+        comments: [...(selectedPost.comments || []), comment],
+      };
+      setSelectedPost(updatedPost);
+      setPosts((currentPosts) =>
+        currentPosts.map((post) => (post.id === updatedPost.id ? updatedPost : post)),
+      );
+      setNewComment("");
+    } catch (error) {
+      console.error("댓글 작성 실패:", error);
+      alert("댓글 작성에 실패했습니다.");
     }
   };
 
@@ -140,7 +307,13 @@ export default function CommunityBoard() {
           </p>
         </div>
         <button
-          onClick={() => setIsWriting(!isWriting)}
+          onClick={() => {
+            if (!currentUser) {
+              onRequireLogin?.();
+              return;
+            }
+            setIsWriting(!isWriting);
+          }}
           style={{
             backgroundColor: "#f43f5e",
             color: "white",
@@ -278,6 +451,16 @@ export default function CommunityBoard() {
               <div className="col-time">{post.time}</div>
             </div>
           ))
+        ) : loadError ? (
+          <div
+            style={{
+              color: "#d9365b",
+              padding: "50px",
+              textAlign: "center",
+            }}
+          >
+            {loadError}
+          </div>
         ) : (
           <div
             style={{
@@ -412,9 +595,12 @@ export default function CommunityBoard() {
               >
                 댓글 {selectedPost.comments?.length || 0}개
               </h4>
-              {selectedPost.comments?.map((cmt, idx) => (
+              {selectedPost.comments?.map((cmt) => (
                 <div
-                  key={idx}
+                  key={cmt.id}
+                  ref={(element) => {
+                    if (element) commentRefs.current.set(String(cmt.id), element);
+                  }}
                   style={{
                     padding: "12px 16px",
                     backgroundColor: "#f4f4f5",
@@ -425,9 +611,9 @@ export default function CommunityBoard() {
                   }}
                 >
                   <strong style={{ marginRight: "8px", color: "#57534e" }}>
-                    덕후유저:
+                    {cmt.author}:
                   </strong>{" "}
-                  {cmt}
+                  {cmt.text}
                 </div>
               ))}
             </div>

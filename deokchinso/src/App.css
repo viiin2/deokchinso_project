@@ -1443,9 +1443,10 @@ body {
   display: flex;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 .mypage-tab-btn {
-  flex: 1;
+  flex: 1 1 30%;
   background: none;
   border: none;
   padding: 12px;
