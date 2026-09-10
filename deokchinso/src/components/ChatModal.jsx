@@ -1,19 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
-
-function getProfileDetails(user) {
-  const metadata = user?.user_metadata || {};
-  return {
-    id: user?.id,
-    displayName:
-      metadata.nickname ||
-      metadata.name ||
-      metadata.full_name ||
-      user?.email?.split("@")[0] ||
-      "덕친",
-    avatarUrl: metadata.avatar_url || null,
-  };
-}
+import { getPostHostProfile, getUserProfile } from "../profileUtils";
 
 function ProfileAvatar({ avatarUrl, name, size = 40 }) {
   if (avatarUrl) {
@@ -47,7 +34,26 @@ function ProfileAvatar({ avatarUrl, name, size = 40 }) {
   );
 }
 
-export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) {
+function formatMessageTime(timestamp) {
+  if (!timestamp) return "방금";
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "방금";
+
+  return date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export default function ChatModal({
+  isOpen,
+  onClose,
+  targetMate,
+  currentUser,
+  currentUserProfile,
+}) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [participantCount, setParticipantCount] = useState(0);
@@ -55,10 +61,11 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
   const [errorMessage, setErrorMessage] = useState("");
   const scrollRef = useRef(null);
 
-  const postId = targetMate?.id ?? targetMate?.postId ?? "general";
+  const postId = targetMate?.chatPostId ?? targetMate?.postId ?? targetMate?.id ?? "general";
   const roomId = targetMate?.roomId || `group_${postId}`;
   const roomTitle = targetMate?.title || targetMate?.postTitle || "동행 모집방";
-  const currentProfile = getProfileDetails(currentUser);
+  const currentProfile = getUserProfile(currentUser, currentUserProfile);
+  const roomHostProfile = getPostHostProfile(targetMate);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -202,7 +209,6 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
         setParticipantCount(members.length);
         setRoomProfile(
           memberProfiles.find((profile) => profile.id !== currentUser.id) ||
-            memberProfiles.find((profile) => profile.id === currentUser.id) ||
             null,
         );
         await loadMessages();
@@ -253,6 +259,8 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
     isOpen,
     postId,
     roomId,
+    roomHostProfile.avatarUrl,
+    roomHostProfile.displayName,
     roomTitle,
   ]);
 
@@ -291,8 +299,8 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
     : "채팅은 로그인 후 이용할 수 있습니다.";
 
   const headerProfile = roomProfile || {
-    display_name: targetMate?.author || "동행 메이트",
-    avatar_url: targetMate?.avatarUrl || null,
+    display_name: roomHostProfile.displayName,
+    avatar_url: roomHostProfile.avatarUrl,
   };
 
   return (
@@ -440,23 +448,26 @@ export default function ChatModal({ isOpen, onClose, targetMate, currentUser }) 
                       minWidth: "42px",
                     }}
                   >
-                    {message.isMine && message.isReadByOther && (
+                    {message.isMine && (
                       <span
-                        aria-label="상대가 읽음"
-                        title="상대가 읽음"
-                        style={{ color: "#d9365b", fontSize: "12px" }}
+                        aria-label={
+                          message.isReadByOther ? "상대가 읽음" : "상대가 아직 읽지 않음"
+                        }
+                        title={
+                          message.isReadByOther ? "상대가 읽음" : "상대가 아직 읽지 않음"
+                        }
+                        style={{
+                          color: message.isReadByOther ? "#d9365b" : "#999",
+                          fontSize: "10px",
+                          lineHeight: 1,
+                          transform: "translateY(3px)",
+                          whiteSpace: "nowrap",
+                        }}
                       >
-                        ✓
+                        {message.isReadByOther ? "읽음" : "안 읽음"}
                       </span>
                     )}
-                    <span>
-                      {message.created_at
-                        ? new Date(message.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "방금"}
-                    </span>
+                    <span>{formatMessageTime(message.created_at)}</span>
                   </div>
                 </div>
               </div>

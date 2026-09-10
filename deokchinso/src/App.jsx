@@ -14,14 +14,15 @@ import ChatModal from "./components/ChatModal";
 import ProfileModal from "./components/ProfileModal";
 import MyPageModal from "./components/MyPageModal";
 import CommunityBoard from "./components/CommunityBoard";
-import GuidePage from "./components/GuidePage";
+import GuideModal from "./components/GuideModal";
 import PopularEventsPage from "./components/PopularEventsPage";
 import ChatListModal from "./components/ChatListModal";
+import RecruitmentDetailModal from "./components/RecruitmentDetailModal";
 import LoginModal from "./components/LoginModal";
 import { supabase } from "./supabase";
-
-// 🌟 1. 방금 만든 ChatRoom 컴포넌트를 불러옵니다.
-import ChatRoom from "./components/ChatRoom";
+import { getUserProfile } from "./profileUtils";
+import { bookmarkKey, loadBookmarks, saveBookmarks, toBookmark } from "./bookmarks";
+import { addAppliedPost, loadAppliedPosts } from "./activities";
 
 export default function App() {
   const [posts, setPosts] = useState([]);
@@ -32,6 +33,10 @@ export default function App() {
   const [date, setDate] = useState(dateOptions[0]);
 
   const [user, setUser] = useState(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [appliedPosts, setAppliedPosts] = useState([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   const [isHostModalOpen, setIsHostModalOpen] = useState(false);
@@ -44,6 +49,7 @@ export default function App() {
 
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [isRecruitmentDetailOpen, setIsRecruitmentDetailOpen] = useState(false);
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -51,22 +57,259 @@ export default function App() {
   const [isChatListOpen, setIsChatListOpen] = useState(false);
 
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [hostInitialEvent, setHostInitialEvent] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const syncUser = async (session) => {
+      const authUser = session?.user ?? null;
+      if (!isMounted) return;
+
+      setUser(authUser);
+      if (!authUser) {
+        setCurrentUserProfile(null);
+        return;
+      }
+
+      const fallbackProfile = getUserProfile(authUser);
+      setCurrentUserProfile({
+        display_name: fallbackProfile.displayName,
+        avatar_url: fallbackProfile.avatarUrl,
+      });
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+      if (data) {
+        setCurrentUserProfile(data);
+        return;
+      }
+
+      if (error) {
+        console.error("프로필을 불러오지 못했습니다:", error);
+        return;
+      }
+
+      const { data: savedProfile, error: saveError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: authUser.id,
+            display_name: fallbackProfile.displayName,
+            avatar_url: fallbackProfile.avatarUrl,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select("display_name, avatar_url")
+        .single();
+
+      if (!isMounted) return;
+      if (saveError) {
+        console.error("기본 프로필을 저장하지 못했습니다:", saveError);
+        return;
+      }
+      setCurrentUserProfile(savedProfile);
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      syncUser(session);
     });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      syncUser(session);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
+
+  const navigationProfile = getUserProfile(user, currentUserProfile);
+
+  useEffect(() => {
+    const loadBookmarksTimer = window.setTimeout(() => {
+      setBookmarks(loadBookmarks(user?.id));
+    }, 0);
+
+    return () => window.clearTimeout(loadBookmarksTimer);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) {
+      const resetUnreadTimer = window.setTimeout(() => setUnreadChatCount(0), 0);
+      return () => window.clearTimeout(resetUnreadTimer);
+    }
+
+    let isCancelled = false;
+    const getRoomIds = async () => {
+      const { data: memberships, error } = await supabase
+        .from("chat_room_members")
+        .select("room_id")
+        .eq("user_id", user.id);
+      if (error) throw error;
+
+      const memberRoomIds = memberships
+        .map((membership) => membership.room_id)
+        .filter((roomId) => !roomId.startsWith("group_"));
+      const hostedRoomIds = posts
+        .filter(
+          (post) =>
+            post.author_user_id === user.id ||
+            (!post.author_user_id && post.author === navigationProfile.displayName),
+        )
+        .map((post) => `post_${post.id}`);
+      return [...new Set([...memberRoomIds, ...hostedRoomIds])];
+    };
+
+    const loadUnreadChatCount = async () => {
+      try {
+        const roomIds = await getRoomIds();
+        if (!roomIds.length || isCancelled) {
+          if (!isCancelled) setUnreadChatCount(0);
+          return;
+        }
+
+        const { data: messages, error: messagesError } = await supabase
+          .from("messages")
+          .select("id, sender_id")
+          .in("room_id", roomIds)
+          .neq("sender_id", user.id);
+        if (messagesError) throw messagesError;
+
+        const messageIds = messages.map((message) => String(message.id));
+        if (!messageIds.length || isCancelled) {
+          if (!isCancelled) setUnreadChatCount(0);
+          return;
+        }
+
+        const { data: messageReads, error: readsError } = await supabase
+          .from("message_reads")
+          .select("message_id")
+          .eq("user_id", user.id)
+          .in("message_id", messageIds);
+        if (readsError) throw readsError;
+
+        if (!isCancelled) {
+          const readMessageIds = new Set(
+            messageReads.map((messageRead) => String(messageRead.message_id)),
+          );
+          setUnreadChatCount(
+            messages.filter((message) => !readMessageIds.has(String(message.id))).length,
+          );
+        }
+      } catch (error) {
+        console.error("미확인 채팅 수를 불러오지 못했습니다:", error);
+      }
+    };
+
+    loadUnreadChatCount();
+    const channel = supabase
+      .channel(`chat-inbox-badge:${user.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, loadUnreadChatCount)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "message_reads" },
+        loadUnreadChatCount,
+      )
+      .subscribe();
+
+    return () => {
+      isCancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [navigationProfile.displayName, posts, user]);
+
+  useEffect(() => {
+    const loadApplicationsTimer = window.setTimeout(() => {
+      setAppliedPosts(loadAppliedPosts(user?.id));
+    }, 0);
+
+    return () => window.clearTimeout(loadApplicationsTimer);
+  }, [user?.id]);
+
+  const handleToggleBookmark = (post) => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+
+    setBookmarks((previous) => {
+      const key = bookmarkKey(post);
+      const alreadyBookmarked = previous.some((bookmark) => bookmark.id === key);
+      const next = alreadyBookmarked
+        ? previous.filter((bookmark) => bookmark.id !== key)
+        : [toBookmark(post), ...previous];
+      saveBookmarks(user.id, next);
+      return next;
+    });
+  };
+
+  const handleReturnHome = () => {
+    setActiveMenu("동행 찾기");
+    setIsSearchModalOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleOpenPostDetail = (post) => {
+    setSelectedPost(post);
+    setIsChatModalOpen(false);
+    setIsRecruitmentDetailOpen(true);
+  };
+
+  const handleStartChat = (post) => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+
+    const isMyPost =
+      post.author_user_id === user.id ||
+      (!post.author_user_id && post.author === navigationProfile.displayName);
+    if (!isMyPost) {
+      setAppliedPosts(addAppliedPost(user.id, post));
+    }
+
+    setSelectedPost(post);
+    setIsRecruitmentDetailOpen(false);
+    setIsMyPageOpen(false);
+    setIsSearchModalOpen(false);
+    setIsChatModalOpen(true);
+  };
+
+  const handleOpenHostModal = (event = null) => {
+    if (!user) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    setHostInitialEvent(event);
+    setIsHostModalOpen(true);
+  };
+
+  const hostedPosts = user
+    ? posts
+        .filter(
+          (post) =>
+            post.author_user_id === user.id ||
+            (!post.author_user_id && post.author === navigationProfile.displayName),
+        )
+        .map((post) => ({
+          ...post,
+          chatPostId: `post:${post.id}`,
+          roomId: `post_${post.id}`,
+        }))
+    : [];
 
   const fetchPosts = async () => {
     try {
@@ -79,7 +322,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchPosts();
+    const loadPostsTimer = window.setTimeout(() => {
+      fetchPosts();
+    }, 0);
+
+    return () => window.clearTimeout(loadPostsTimer);
   }, []);
 
   const handleSearch = () => {
@@ -111,7 +358,16 @@ export default function App() {
           borderBottom: "1px solid #f0f0f0",
         }}
       >
-        <div className="nav-left">
+        <div
+          className="nav-left"
+          role="button"
+          tabIndex={0}
+          onClick={handleReturnHome}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") handleReturnHome();
+          }}
+          style={{ cursor: "pointer" }}
+        >
           <span className="logo-icon">덕</span>
           <h1 className="logo-text">덕친소</h1>
           <span className="logo-desc hidden-mobile">
@@ -119,13 +375,10 @@ export default function App() {
           </span>
         </div>
         <nav className="nav-menu">
-          {/* 🌟 2. 메뉴 탭에 "채팅 테스트"를 추가했습니다. */}
           {[
             "동행 찾기",
             "인기 이벤트",
             "커뮤니티",
-            "덕친소 가이드",
-            "채팅 테스트",
           ].map((tab) => (
             <button
               key={tab}
@@ -157,11 +410,36 @@ export default function App() {
               cursor: "pointer",
               fontWeight: "bold",
               fontSize: "14px",
+              position: "relative",
             }}
           >
             💬 내 톡함
+            {unreadChatCount > 0 && (
+              <span
+                aria-label={`읽지 않은 메시지 ${unreadChatCount}개`}
+                style={{
+                  alignItems: "center",
+                  background: "#d9365b",
+                  border: "2px solid white",
+                  borderRadius: "999px",
+                  color: "white",
+                  display: "inline-flex",
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  height: "19px",
+                  justifyContent: "center",
+                  minWidth: "19px",
+                  padding: "0 4px",
+                  position: "absolute",
+                  right: "-9px",
+                  top: "-8px",
+                }}
+              >
+                {unreadChatCount > 99 ? "99+" : unreadChatCount}
+              </span>
+            )}
           </button>
-          <button className="host-btn" onClick={() => setIsHostModalOpen(true)}>
+          <button className="host-btn" onClick={() => handleOpenHostModal()}>
             <span aria-hidden="true">+</span> 동행방 모집
           </button>
           {user ? (
@@ -197,9 +475,12 @@ export default function App() {
               로그인 / 회원가입
             </button>
           )}
-          <div className="profile-img" onClick={() => setIsMyPageOpen(true)}>
+          <div
+            className="profile-img"
+            onClick={() => (user ? setIsMyPageOpen(true) : setIsLoginModalOpen(true))}
+          >
             <img
-              src={user?.user_metadata?.avatar_url || MY_PROFILE_IMG}
+              src={user ? navigationProfile.avatarUrl : MY_PROFILE_IMG}
               alt="내 프로필"
               style={{
                 width: "40px",
@@ -212,18 +493,6 @@ export default function App() {
           </div>
         </div>
       </header>
-
-      {/* 🌟 3. 채팅 테스트 탭을 누르면 ChatRoom 컴포넌트가 열리도록 추가했습니다. */}
-      {activeMenu === "채팅 테스트" && (
-        <div style={{ padding: "40px 0" }}>
-          <h2
-            style={{ textAlign: "center", marginBottom: "20px", color: "#333" }}
-          >
-            💬 실시간 채팅 테스트 공간
-          </h2>
-          <ChatRoom currentUser={user} />
-        </div>
-      )}
 
       {activeMenu === "동행 찾기" && (
         <HomeSection
@@ -240,20 +509,20 @@ export default function App() {
           setDate={setDate}
           dateOptions={dateOptions}
           handleSearch={handleSearch}
-          setSelectedPost={setSelectedPost}
-          setIsChatModalOpen={setIsChatModalOpen}
+          onOpenPostDetail={handleOpenPostDetail}
           setSelectedUser={setSelectedUser}
           setIsProfileModalOpen={setIsProfileModalOpen}
-          setIsHostModalOpen={setIsHostModalOpen}
+          onOpenHostModal={handleOpenHostModal}
           setCurrentCondition={setCurrentCondition}
           setIsSearchModalOpen={setIsSearchModalOpen}
+          bookmarkedPostIds={bookmarks.map((bookmark) => bookmark.id)}
+          onToggleBookmark={handleToggleBookmark}
         />
       )}
       {activeMenu === "인기 이벤트" && (
-        <PopularEventsPage onOpenHostModal={() => setIsHostModalOpen(true)} />
+        <PopularEventsPage onOpenHostModal={handleOpenHostModal} />
       )}
       {activeMenu === "커뮤니티" && <CommunityBoard />}
-      {activeMenu === "덕친소 가이드" && <GuidePage />}
 
       <footer className="footer-dark">
         <div className="footer-top">
@@ -306,7 +575,7 @@ export default function App() {
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
-                width: "130px",
+                width: "160px",
               }}
             >
               {categories.map((category) => (
@@ -341,6 +610,27 @@ export default function App() {
                   {category.name}
                 </button>
               ))}
+              <div style={{ borderTop: "1px solid #eee", margin: "2px 0" }} />
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGuideOpen(true);
+                  setIsFabOpen(false);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "#333",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  padding: "10px",
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                📘 덕친소 가이드
+              </button>
             </div>
           )}
           <button
@@ -388,21 +678,40 @@ export default function App() {
       </div>
 
       <HostModal
+        key={hostInitialEvent?.id || "manual"}
         isOpen={isHostModalOpen}
-        onClose={() => setIsHostModalOpen(false)}
+        onClose={() => {
+          setIsHostModalOpen(false);
+          setHostInitialEvent(null);
+        }}
         onSuccess={fetchPosts}
+        currentUser={user}
+        currentUserProfile={currentUserProfile}
+        initialEvent={hostInitialEvent}
       />
       <SearchResultsModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         searchCondition={currentCondition}
         posts={posts}
+        bookmarkedPostIds={bookmarks.map((bookmark) => bookmark.id)}
+        onToggleBookmark={handleToggleBookmark}
+        onOpenPostDetail={handleOpenPostDetail}
+      />
+      <RecruitmentDetailModal
+        isOpen={isRecruitmentDetailOpen}
+        onClose={() => setIsRecruitmentDetailOpen(false)}
+        post={selectedPost}
+        isBookmarked={bookmarks.some((bookmark) => bookmark.id === bookmarkKey(selectedPost || {}))}
+        onToggleBookmark={handleToggleBookmark}
+        onStartChat={handleStartChat}
       />
       <ChatModal
         isOpen={isChatModalOpen}
         onClose={() => setIsChatModalOpen(false)}
         targetMate={selectedPost}
         currentUser={user}
+        currentUserProfile={currentUserProfile}
       />
       <ProfileModal
         isOpen={isProfileModalOpen}
@@ -412,16 +721,29 @@ export default function App() {
       <MyPageModal
         isOpen={isMyPageOpen}
         onClose={() => setIsMyPageOpen(false)}
-        profileImg={MY_PROFILE_IMG}
+        currentUser={user}
+        currentUserProfile={currentUserProfile}
+        onProfileUpdated={(profile) => setCurrentUserProfile(profile)}
+        bookmarks={bookmarks}
+        appliedPosts={appliedPosts}
+        hostedPosts={hostedPosts}
+        onOpenPost={(post) => {
+          setIsMyPageOpen(false);
+          handleOpenPostDetail(post);
+        }}
+        onStartChat={handleStartChat}
       />
       <ChatListModal
         isOpen={isChatListOpen}
         onClose={() => setIsChatListOpen(false)}
         currentUser={user}
+        currentUserName={navigationProfile.displayName}
+        posts={posts}
         onSelectRoom={(room) => {
           setSelectedPost({
             roomId: room.roomId,
             author: room.author,
+            avatarUrl: room.avatarUrl,
             title: room.title,
             postId: room.postId,
             roomType: room.roomType,
@@ -434,6 +756,7 @@ export default function App() {
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
       />
+      <GuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 }

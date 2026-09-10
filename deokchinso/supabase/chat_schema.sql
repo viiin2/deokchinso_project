@@ -17,8 +17,15 @@ create table if not exists public.chat_rooms (
   post_id text,
   title text not null,
   created_by uuid not null references auth.users(id) on delete cascade,
+  host_name text,
+  host_avatar_url text,
   created_at timestamptz not null default now()
 );
+
+-- Existing projects need these two columns as well. They preserve the dummy
+-- host profile until another logged-in member joins the room.
+alter table public.chat_rooms add column if not exists host_name text;
+alter table public.chat_rooms add column if not exists host_avatar_url text;
 
 create table if not exists public.chat_room_members (
   room_id text not null references public.chat_rooms(id) on delete cascade,

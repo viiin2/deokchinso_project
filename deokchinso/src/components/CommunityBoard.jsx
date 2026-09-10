@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 export default function CommunityBoard() {
   const [posts, setPosts] = useState([]);
@@ -31,7 +31,11 @@ export default function CommunityBoard() {
   };
 
   useEffect(() => {
-    fetchCommunityPosts();
+    const loadPostsTimer = window.setTimeout(() => {
+      fetchCommunityPosts();
+    }, 0);
+
+    return () => window.clearTimeout(loadPostsTimer);
   }, []);
 
   const filteredPosts = posts.filter((post) => post.category === activeTab);
@@ -58,7 +62,7 @@ export default function CommunityBoard() {
         setIsWriting(false);
         fetchCommunityPosts();
       }
-    } catch (error) {
+    } catch {
       alert("글 작성 실패");
     }
   };

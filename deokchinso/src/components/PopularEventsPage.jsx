@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function PopularEventsPage({ onOpenHostModal }) {
   const popularEvents = [
     {
@@ -106,7 +104,7 @@ export default function PopularEventsPage({ onOpenHostModal }) {
 
               <div className="popular-footer">
                 <span className="views">👁 조회수 {event.views}</span>
-                <button className="join-btn" onClick={onOpenHostModal}>
+                <button className="join-btn" onClick={() => onOpenHostModal(event)}>
                   나도 동행 구하기 →
                 </button>
               </div>

@@ -4,6 +4,7 @@ import {
   initialPosts, // 🌟 기존 데이터 다시 부활!
   reviews,
 } from "../data/mockData";
+import { getPostHostProfile } from "../profileUtils";
 
 export default function HomeSection({
   posts, // 백엔드 데이터
@@ -19,13 +20,14 @@ export default function HomeSection({
   setDate,
   dateOptions,
   handleSearch,
-  setSelectedPost,
-  setIsChatModalOpen,
+  onOpenPostDetail,
   setSelectedUser,
   setIsProfileModalOpen,
-  setIsHostModalOpen,
+  onOpenHostModal,
   setCurrentCondition,
   setIsSearchModalOpen,
+  bookmarkedPostIds,
+  onToggleBookmark,
 }) {
   const selectedCategoryObj = categories.find(
     (cat) => cat.id === activeCategory,
@@ -33,7 +35,18 @@ export default function HomeSection({
 
   // 🌟 핵심포인트: 백엔드 데이터(posts)와 기존 데이터(initialPosts)를 하나로 합칩니다!
   // (백엔드 데이터를 먼저 보여주기 위해 앞에 배치했습니다)
-  const allPosts = [...(posts || []), ...initialPosts];
+  const allPosts = [
+    ...(posts || []).map((post) => ({
+      ...post,
+      chatPostId: `post:${post.id}`,
+      roomId: `post_${post.id}`,
+    })),
+    ...initialPosts.map((post) => ({
+      ...post,
+      chatPostId: `mock:${post.id}`,
+      roomId: `mock_${post.id}`,
+    })),
+  ];
 
   const categoryValues = {
     kpop: ["K-POP"],
@@ -183,8 +196,7 @@ export default function HomeSection({
                 // 합친 배열이라 id가 겹칠 수 있으니 key에 index를 활용해 에러 방지
                 key={`post-${post.id}-${index}`}
                 onClick={() => {
-                  setSelectedPost(post);
-                  setIsChatModalOpen(true);
+                  onOpenPostDetail(post);
                 }}
               >
                 <div className="card-image-wrapper">
@@ -220,11 +232,41 @@ export default function HomeSection({
                       }}
                     >
                       <img
-                        src={`https://picsum.photos/seed/${post.author || post.id}/100/100`}
+                        src={getPostHostProfile(post).avatarUrl}
                         alt="작성자"
                       />
-                      <span>{post.author || "익명 호스트"}</span>
+                      <span>{getPostHostProfile(post).displayName}</span>
                     </div>
+                    <button
+                      type="button"
+                      aria-label={
+                        bookmarkedPostIds?.includes(post.roomId)
+                          ? "찜한 모집글 해제"
+                          : "모집글 찜하기"
+                      }
+                      aria-pressed={bookmarkedPostIds?.includes(post.roomId)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onToggleBookmark(post);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: bookmarkedPostIds?.includes(post.roomId) ? "#ff4b72" : "#999",
+                        cursor: "pointer",
+                        fontSize: "22px",
+                        lineHeight: 1,
+                        marginLeft: "auto",
+                        padding: "2px 4px",
+                      }}
+                      title={
+                        bookmarkedPostIds?.includes(post.roomId)
+                          ? "찜 해제"
+                          : "찜하기"
+                      }
+                    >
+                      {bookmarkedPostIds?.includes(post.roomId) ? "♥" : "♡"}
+                    </button>
                     <span className="card-tag">{post.tag || "#동행환영"}</span>
                   </div>
                 </div>
@@ -328,7 +370,7 @@ export default function HomeSection({
             </p>
             <button
               className="cta-btn"
-              onClick={() => setIsHostModalOpen(true)}
+              onClick={() => onOpenHostModal()}
             >
               방 개설하기 (무료)
             </button>

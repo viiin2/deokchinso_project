@@ -34,6 +34,8 @@ function initDatabase() {
         location TEXT,
         region TEXT,
         author TEXT,
+        author_avatar_url TEXT,
+        author_user_id TEXT,
         tag TEXT,
         img TEXT,
         rating TEXT,
@@ -41,6 +43,22 @@ function initDatabase() {
         likes INTEGER DEFAULT 0
       )
     `);
+
+    db.run("ALTER TABLE posts ADD COLUMN author_avatar_url TEXT", (err) => {
+      if (!err) {
+        console.log("모집글 테이블에 작성자 프로필 사진 컬럼을 추가했습니다.");
+      } else if (!err.message.includes("duplicate column name")) {
+        console.error("작성자 프로필 사진 컬럼 추가 실패:", err.message);
+      }
+    });
+
+    db.run("ALTER TABLE posts ADD COLUMN author_user_id TEXT", (err) => {
+      if (!err) {
+        console.log("모집글 테이블에 작성자 계정 컬럼을 추가했습니다.");
+      } else if (!err.message.includes("duplicate column name")) {
+        console.error("작성자 계정 컬럼 추가 실패:", err.message);
+      }
+    });
 
     // 2-2. 커뮤니티 게시글 테이블 생성
     db.run(`
@@ -458,9 +476,20 @@ app.get("/api/posts", (req, res) => {
 
 // 2. 동행 모집글 작성
 app.post("/api/posts", (req, res) => {
-  const { title, category, genre, date, location, region, author, tag, img } =
-    req.body;
-  const query = `INSERT INTO posts (title, category, genre, date, location, region, author, tag, img, rating, views, likes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`;
+  const {
+    title,
+    category,
+    genre,
+    date,
+    location,
+    region,
+    author,
+    author_avatar_url: authorAvatarUrl,
+    author_user_id: authorUserId,
+    tag,
+    img,
+  } = req.body;
+  const query = `INSERT INTO posts (title, category, genre, date, location, region, author, author_avatar_url, author_user_id, tag, img, rating, views, likes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`;
 
   db.run(
     query,
@@ -472,6 +501,8 @@ app.post("/api/posts", (req, res) => {
       location,
       region,
       author || "덕후",
+      authorAvatarUrl || "",
+      authorUserId || "",
       tag || "#동행",
       img || "https://picsum.photos/seed/new/300/200",
       "5.0",

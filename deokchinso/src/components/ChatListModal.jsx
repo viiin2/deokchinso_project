@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import { getPostHostProfile } from "../profileUtils";
 
 function ProfileAvatar({ avatarUrl, name }) {
   if (avatarUrl) {
@@ -32,7 +33,14 @@ function ProfileAvatar({ avatarUrl, name }) {
   );
 }
 
-export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUser }) {
+export default function ChatListModal({
+  isOpen,
+  onClose,
+  onSelectRoom,
+  currentUser,
+  currentUserName,
+  posts,
+}) {
   const [chatRooms, setChatRooms] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -54,7 +62,22 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
           .eq("user_id", currentUser.id);
         if (membershipError) throw membershipError;
 
-        const roomIds = myMemberships.map((membership) => membership.room_id);
+        // Older rooms used group_<number>, so mock posts and server posts with the
+        // same numeric ID were merged. Keep the records intact in Supabase but do
+        // not surface those ambiguous rooms; newly opened rooms use mock_/post_.
+        const memberRoomIds = myMemberships
+          .map((membership) => membership.room_id)
+          .filter((roomId) => !roomId.startsWith("group_"));
+        const hostedPostsByRoomId = new Map(
+          (posts || [])
+            .filter(
+              (post) =>
+                post.author_user_id === currentUser.id ||
+                (!post.author_user_id && post.author === currentUserName),
+            )
+            .map((post) => [`post_${post.id}`, post]),
+        );
+        const roomIds = [...new Set([...memberRoomIds, ...hostedPostsByRoomId.keys()])];
         if (!roomIds.length) {
           if (!isCancelled) setChatRooms([]);
           return;
@@ -71,7 +94,7 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
             .in("room_id", roomIds),
           supabase
             .from("messages")
-            .select("room_id, sender_id, contents, created_at")
+            .select("id, room_id, sender_id, contents, created_at")
             .in("room_id", roomIds)
             .order("created_at", { ascending: false }),
         ]);
@@ -79,6 +102,16 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
         if (roomsResult.error) throw roomsResult.error;
         if (membersResult.error) throw membersResult.error;
         if (messagesResult.error) throw messagesResult.error;
+
+        const messageIds = messagesResult.data.map((message) => String(message.id));
+        const { data: myMessageReads, error: messageReadsError } = messageIds.length
+          ? await supabase
+              .from("message_reads")
+              .select("message_id")
+              .eq("user_id", currentUser.id)
+              .in("message_id", messageIds)
+          : { data: [], error: null };
+        if (messageReadsError) throw messageReadsError;
 
         const memberIds = [
           ...new Set(membersResult.data.map((member) => member.user_id)),
@@ -100,9 +133,22 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
 
         const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
         const latestMessageByRoom = new Map();
+        const unreadCountByRoom = new Map();
+        const readMessageIds = new Set(
+          myMessageReads.map((messageRead) => String(messageRead.message_id)),
+        );
         messagesResult.data.forEach((message) => {
           if (!latestMessageByRoom.has(message.room_id)) {
             latestMessageByRoom.set(message.room_id, message);
+          }
+          if (
+            message.sender_id !== currentUser.id &&
+            !readMessageIds.has(String(message.id))
+          ) {
+            unreadCountByRoom.set(
+              message.room_id,
+              (unreadCountByRoom.get(message.room_id) || 0) + 1,
+            );
           }
         });
 
@@ -110,17 +156,21 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
           .map((room) => {
             const memberIdsForRoom = membersByRoom.get(room.id) || [];
             const otherMemberId = memberIdsForRoom.find((memberId) => memberId !== currentUser.id);
-            const profile =
-              profilesById.get(otherMemberId) || profilesById.get(currentUser.id) || null;
+            const profile = profilesById.get(otherMemberId) || null;
+            const hostedPost = hostedPostsByRoomId.get(room.id);
+            const roomHostProfile = getPostHostProfile(hostedPost || room, posts);
             const latestMessage = latestMessageByRoom.get(room.id);
+            const hostIsNotMember =
+              Boolean(hostedPost) && !memberIdsForRoom.includes(currentUser.id);
 
             return {
               ...room,
-              avatarUrl: profile?.avatar_url || null,
-              memberCount: memberIdsForRoom.length,
-              profileName: profile?.display_name || "동행 메이트",
+              avatarUrl: profile?.avatar_url || roomHostProfile.avatarUrl,
+              memberCount: memberIdsForRoom.length + (hostIsNotMember ? 1 : 0),
+              profileName: profile?.display_name || roomHostProfile.displayName,
               preview: latestMessage?.contents || "아직 메시지가 없습니다.",
               updatedAt: latestMessage?.created_at || room.created_at,
+              unreadCount: unreadCountByRoom.get(room.id) || 0,
             };
           })
           .sort((first, second) => new Date(second.updatedAt) - new Date(first.updatedAt));
@@ -136,11 +186,22 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
     };
 
     loadChatRooms();
+    const inboxChannel = supabase
+      .channel(`chat-list:${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        () => {
+          loadChatRooms();
+        },
+      )
+      .subscribe();
 
     return () => {
       isCancelled = true;
+      supabase.removeChannel(inboxChannel);
     };
-  }, [currentUser, isOpen]);
+  }, [currentUser, currentUserName, isOpen, posts]);
 
   if (!isOpen) return null;
 
@@ -224,17 +285,42 @@ export default function ChatListModal({ isOpen, onClose, onSelectRoom, currentUs
                 <ProfileAvatar avatarUrl={room.avatarUrl} name={room.profileName} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: "#333",
-                    fontSize: "16px",
-                    fontWeight: 700,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {room.title}
+                <div style={{ alignItems: "center", display: "flex", gap: "8px" }}>
+                  <div
+                    style={{
+                      color: "#333",
+                      flex: 1,
+                      fontSize: "16px",
+                      fontWeight: 700,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {room.title}
+                  </div>
+                  {room.unreadCount > 0 && (
+                    <span
+                      aria-label={`읽지 않은 메시지 ${room.unreadCount}개`}
+                      style={{
+                        alignItems: "center",
+                        background: "#ff4b72",
+                        borderRadius: "999px",
+                        color: "white",
+                        display: "inline-flex",
+                        flexShrink: 0,
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        height: "20px",
+                        justifyContent: "center",
+                        minWidth: "20px",
+                        padding: "0 6px",
+                      }}
+                    >
+                      {room.unreadCount > 99 ? "99+" : room.unreadCount}
+                    </span>
+                  )}
                 </div>
                 <div style={{ color: "#888", fontSize: "12px", margin: "4px 0" }}>
                   {room.memberCount}명 참여 중

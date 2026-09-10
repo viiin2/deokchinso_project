@@ -1,15 +1,29 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { getUserProfile } from "../profileUtils";
 
-export default function HostModal({ isOpen, onClose, onSuccess }) {
-  const [formData, setFormData] = useState({
-    category: "K-POP",
-    title: "",
-    location: "",
+function createInitialFormData(initialEvent) {
+  return {
+    category: initialEvent?.category === "게임/e스포츠" ? "게임" : initialEvent?.category || "K-POP",
+    title: initialEvent ? `${initialEvent.title} 동행 구해요` : "",
+    location: initialEvent?.location || "",
     date: "",
-    tag: "",
-    img: "", // 🌟 사진 데이터(URL 또는 Base64)를 담을 필드 추가!
+    tag: initialEvent ? `#${initialEvent.title} #동행구해요` : "",
+    img: initialEvent?.image || "",
     author: "덕후유저",
-  });
+    author_avatar_url: "",
+    author_user_id: "",
+  };
+}
+
+export default function HostModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  currentUser,
+  currentUserProfile,
+  initialEvent,
+}) {
+  const [formData, setFormData] = useState(() => createInitialFormData(initialEvent));
 
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -34,13 +48,25 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!currentUser) {
+      alert("동행방을 만들려면 먼저 로그인해주세요.");
+      return;
+    }
+
+    const profile = getUserProfile(currentUser, currentUserProfile);
+
     try {
       const response = await fetch("http://localhost:3000/api/posts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          author: profile.displayName,
+          author_avatar_url: profile.avatarUrl,
+          author_user_id: currentUser.id,
+        }),
       });
 
       if (response.ok) {
@@ -59,15 +85,7 @@ export default function HostModal({ isOpen, onClose, onSuccess }) {
 
   const handleClose = () => {
     setIsSuccess(false);
-    setFormData({
-      category: "K-POP",
-      title: "",
-      location: "",
-      date: "",
-      tag: "",
-      img: "",
-      author: "덕후유저",
-    });
+    setFormData(createInitialFormData(initialEvent));
     onClose();
   };
 

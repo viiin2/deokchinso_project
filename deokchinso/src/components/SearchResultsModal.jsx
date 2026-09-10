@@ -1,16 +1,30 @@
-import React from "react";
 import { initialPosts } from "../data/mockData";
+import { getPostHostProfile } from "../profileUtils";
 
 export default function SearchResultsModal({
   isOpen,
   onClose,
   searchCondition,
   posts,
+  bookmarkedPostIds,
+  onToggleBookmark,
+  onOpenPostDetail,
 }) {
   if (!isOpen) return null;
 
   // 백엔드 데이터와 더미 데이터 합치기
-  const allPosts = [...(posts || []), ...initialPosts];
+  const allPosts = [
+    ...(posts || []).map((post) => ({
+      ...post,
+      chatPostId: `post:${post.id}`,
+      roomId: `post_${post.id}`,
+    })),
+    ...initialPosts.map((post) => ({
+      ...post,
+      chatPostId: `mock:${post.id}`,
+      roomId: `mock_${post.id}`,
+    })),
+  ];
 
   const filteredPosts = allPosts.filter((post) => {
     const postRegion = post.location || post.region || "";
@@ -59,7 +73,11 @@ export default function SearchResultsModal({
         <div className="card-grid-2">
           {filteredPosts.length > 0 ? (
             filteredPosts.map((post, index) => (
-              <div className="card" key={`search-post-${post.id}-${index}`}>
+              <div
+                className="card"
+                key={`search-post-${post.id}-${index}`}
+                onClick={() => onOpenPostDetail(post)}
+              >
                 <div className="card-image-wrapper">
                   {/* 사진 안 깨지게 기본 이미지 확실하게 렌더링! */}
                   <img
@@ -86,11 +104,36 @@ export default function SearchResultsModal({
                   <div className="card-footer">
                     <div className="author-info">
                       <img
-                        src={`https://picsum.photos/seed/${post.author || post.id}/100/100`}
+                        src={getPostHostProfile(post).avatarUrl}
                         alt="작성자"
                       />
-                      <span>{post.author || "익명 호스트"}</span>
+                      <span>{getPostHostProfile(post).displayName}</span>
                     </div>
+                    <button
+                      type="button"
+                      aria-label={
+                        bookmarkedPostIds?.includes(post.roomId)
+                          ? "찜한 모집글 해제"
+                          : "모집글 찜하기"
+                      }
+                      aria-pressed={bookmarkedPostIds?.includes(post.roomId)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onToggleBookmark(post);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: bookmarkedPostIds?.includes(post.roomId) ? "#ff4b72" : "#999",
+                        cursor: "pointer",
+                        fontSize: "22px",
+                        lineHeight: 1,
+                        marginLeft: "auto",
+                        padding: "2px 4px",
+                      }}
+                    >
+                      {bookmarkedPostIds?.includes(post.roomId) ? "♥" : "♡"}
+                    </button>
                   </div>
                 </div>
               </div>
